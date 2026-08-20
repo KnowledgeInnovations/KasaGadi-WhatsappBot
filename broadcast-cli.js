@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * CLI tool to send WhatsApp broadcasts to agents
+ * CLI tool to send WhatsApp broadcasts to registered members/contacts
  *
  * Usage:
- *   node broadcast-cli.js --file agents.json --message "Join our Agent Mixer on April 30!"
- *   node broadcast-cli.js --csv agents.csv --message "Join our Agent Mixer on April 30!"
+ *   node broadcast-cli.js --file agents.json --message "Your message here"
+ *   node broadcast-cli.js --csv agents.csv --message "Your message here"
  *   node broadcast-cli.js --numbers "+233123456789,+233987654321" --message "Your message here"
  */
 
@@ -178,14 +178,14 @@ Usage:
 
 Options:
   --message TEXT         Message to send (required)
-  --file PATH           Path to JSON or CSV file with agent data
+  --file PATH           Path to JSON or CSV file with contact data
   --csv PATH            Shorthand for --file with CSV
   --numbers LIST        Comma-separated phone numbers with country codes
   --phoneField NAME     Column name for phone (auto-detected if omitted)
 
 Examples:
-  node broadcast-cli.js --file agents.json --message "Join the mixer on April 30!"
-  node broadcast-cli.js --csv agents.csv --message "Event reminder" --phoneField "whatsapp_number"
+  node broadcast-cli.js --file agents.json --message "New fact-check published — check it out!"
+  node broadcast-cli.js --csv agents.csv --message "Weekly digest" --phoneField "whatsapp_number"
   node broadcast-cli.js --numbers "+233123456789,+233987654321" --message "Hello!"
 `);
 }

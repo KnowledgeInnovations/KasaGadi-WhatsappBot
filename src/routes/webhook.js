@@ -28,6 +28,9 @@ router.post("/webhook", async (req, res) => {
   // Immediately acknowledge to avoid Meta retries
   res.sendStatus(200);
 
+  // TEMP DEBUG — remove after diagnosing the "From: undefined" issue
+  console.log("[DEBUG] Raw webhook body:", JSON.stringify(req.body));
+
   try {
     const entry = req.body?.entry;
     if (!entry) return;
@@ -40,14 +43,17 @@ router.post("/webhook", async (req, res) => {
         // Process messages
         const messages = value?.messages || [];
         for (const message of messages) {
+          // Meta's newer "usernames" feature sends from_user_id (a BSUID) instead
+          // of from (a phone number) when the sender has a WhatsApp username set up.
+          const sender = message.from || message.from_user_id;
           const msgContent = message.text?.body
             || message.interactive?.button_reply?.title
             || message.interactive?.list_reply?.title
             || `[${message.type}]`;
-          console.log(`[Message] From: ${message.from} | Type: ${message.type} | Content: ${msgContent}`);
+          console.log(`[Message] From: ${sender} | Type: ${message.type} | Content: ${msgContent}`);
           // Fire and forget — don't block the webhook response
           handleIncomingMessage(message).catch((err) => {
-            console.error(`[Message] Handler error for ${message.from}:`, err.message);
+            console.error(`[Message] Handler error for ${sender}:`, err.message);
           });
         }
 

@@ -4,9 +4,6 @@ import { fileURLToPath } from "url";
 import rateLimit from "express-rate-limit";
 import config from "./src/config/index.js";
 import { connectDB } from "./src/db/connection.js";
-import { seedProperties } from "./src/data/properties.js";
-import { startStatusScraper } from "./src/services/statusScraper.js";
-import { scheduleDailyReport } from "./src/services/dailyReport.js";
 import webhookRoutes from "./src/routes/webhook.js";
 import apiRoutes from "./src/routes/api.js";
 import { authMiddleware, loginHandler } from "./src/middleware/auth.js";
@@ -22,7 +19,7 @@ app.set("trust proxy", 1);
 
 app.use(express.json({ limit: "1mb" }));
 
-// Serve static files (legacy dashboard + assets)
+// Serve static files (assets)
 app.use("/static", express.static(path.join(__dirname, "public")));
 
 // Serve React dashboard app (built to public/app)
@@ -63,24 +60,23 @@ app.post("/api/auth/login", loginHandler);
 // Protect all other /api routes
 app.use("/api", authMiddleware, apiRoutes);
 
-// Dashboard (serves HTML — auth checked client-side via token)
-app.get("/dashboard", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "dashboard.html"));
-});
+// Legacy /dashboard path — the real admin dashboard now lives at /app
+app.get("/dashboard", (req, res) => res.redirect("/app"));
 
 // Root
 app.get("/", (req, res) => {
   res.json({
-    service: "Devtraco WhatsApp AI Chatbot",
+    service: "Kasagadi AI WhatsApp Assistant",
     status: "running",
     version: "1.0.0",
+    poweredBy: "Mansa AI",
     endpoints: {
       webhook: "/webhook",
-      dashboard: "/dashboard",
+      dashboard: "/app",
       health: "/api/health",
       stats: "/api/stats",
-      leads: "/api/leads",
-      properties: "/api/properties",
+      claims: "/api/claims",
+      members: "/api/members",
     },
   });
 });
@@ -93,23 +89,18 @@ app.use((err, req, res, next) => {
 
 // ---------- Start ----------
 async function start() {
-  // Connect to MongoDB
+  // Connect to MongoDB (sessions/members/broadcasts only — claims come live from the Kasagadi API)
   const dbConnected = await connectDB();
-  if (dbConnected) {
-    await seedProperties();
-    startStatusScraper();
-  }
-
-  scheduleDailyReport();
 
   app.listen(config.port, () => {
-    console.log(`\n🤖 Devtraco WhatsApp AI Chatbot`);
+    console.log(`\n🤖 Kasagadi AI WhatsApp Assistant`);
     console.log(`   Server running on port ${config.port}`);
     console.log(`   Database:   ${dbConnected ? "MongoDB Atlas ✅" : "In-memory (no persistence) ⚠️"}`);
     console.log(`   Webhook:    http://localhost:${config.port}/webhook`);
-    console.log(`   Dashboard:  http://localhost:${config.port}/dashboard`);
+    console.log(`   Dashboard:  http://localhost:${config.port}/app`);
     console.log(`   API:        http://localhost:${config.port}/api/health`);
-    console.log(`   Model:      ${config.openai.model}\n`);
+    console.log(`   AI Model:   Mansa AI (${config.mansa.baseUrl})`);
+    console.log(`   Claims API: ${config.kasagadi.apiKey ? "Kasagadi API ✅" : "⚠️  KASAGADI_API_KEY not set — bot will run with no verified claims"}\n`);
 
     // Keep-alive ping to prevent Render free-tier cold starts (every 14 min)
     const BASE_URL = process.env.BASE_URL;

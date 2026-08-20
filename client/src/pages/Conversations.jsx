@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, Trash2, MessageSquare, X, Calendar } from "lucide-react";
+import { Search, Trash2, MessageSquare, X, Calendar, ArrowLeft } from "lucide-react";
 import { startOfDay, startOfWeek, startOfMonth, subDays, isAfter } from "date-fns";
 import { api } from "@/lib/api";
-import { fmtRelative, fmtPhone, truncate, avatarColor, initials } from "@/lib/utils";
+import { fmtRelative, fmtPhone, truncate, avatarColor, initials, cn } from "@/lib/utils";
 import { Badge, Card, PageLoader, Empty } from "@/components/ui";
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -135,8 +135,11 @@ export default function Conversations() {
     <div className="max-w-[1400px]">
       <div className="flex gap-5" style={{ height: "calc(100vh - 144px)" }}>
 
-        {/* ── Left panel — list ── */}
-        <Card className="w-80 shrink-0 flex flex-col overflow-hidden">
+        {/* ── Left panel — list. On mobile, hidden once a conversation is picked. ── */}
+        <Card className={cn(
+          "w-full lg:w-80 shrink-0 flex-col overflow-hidden",
+          selected ? "hidden lg:flex" : "flex"
+        )}>
 
           {/* Search */}
           <div className="px-4 pt-3 pb-2 border-b border-slate-100 space-y-2">
@@ -237,8 +240,11 @@ export default function Conversations() {
           </div>
         </Card>
 
-        {/* ── Right panel — chat ── */}
-        <Card className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* ── Right panel — chat. On mobile, only shown once a conversation is picked. ── */}
+        <Card className={cn(
+          "flex-1 flex-col overflow-hidden min-w-0",
+          selected ? "flex" : "hidden lg:flex"
+        )}>
           {!selected ? (
             <div className="flex-1 flex items-center justify-center">
               <Empty icon={MessageSquare} title="Select a conversation"
@@ -248,6 +254,13 @@ export default function Conversations() {
             <>
               {/* Chat header */}
               <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setSelected(null)}
+                  className="lg:hidden -ml-1.5 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
+                  aria-label="Back to conversation list"
+                >
+                  <ArrowLeft size={18} />
+                </button>
                 <div className={`w-10 h-10 rounded-full ${avatarColor(selected.name || selected.userId)} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
                   {initials(selected.name || selected.userId)}
                 </div>
@@ -257,7 +270,7 @@ export default function Conversations() {
                     <span>{fmtPhone(selected.userId)}</span>
                     <span>·</span>
                     <span>{selected.messageCount} messages</span>
-                    {selected.leadScore > 0 && <><span>·</span><span>Score {selected.leadScore}</span></>}
+                    {selected.registered && <><span>·</span><span className="text-emerald-600 font-medium">Registered member</span></>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -274,12 +287,10 @@ export default function Conversations() {
               </div>
 
               {/* Context bar */}
-              {(selected.propertyInterest || selected.email || selected.budget) && (
+              {(selected.email || selected.registered) && (
                 <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500 shrink-0">
-                  {selected.propertyInterest && <span>🏠 <strong className="text-slate-700">{selected.propertyInterest}</strong></span>}
-                  {selected.budget          && <span>💰 <strong className="text-slate-700">{selected.budget}</strong></span>}
-                  {selected.email           && <span>📧 <strong className="text-slate-700">{selected.email}</strong></span>}
-                  {selected.consentGiven    && <span className="text-emerald-600 font-medium">✓ GDPR consent given</span>}
+                  {selected.email      && <span>📧 <strong className="text-slate-700">{selected.email}</strong></span>}
+                  {selected.registered && <span className="text-emerald-600 font-medium">✓ Registered member</span>}
                 </div>
               )}
 

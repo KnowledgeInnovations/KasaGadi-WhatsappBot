@@ -5,36 +5,21 @@ import { api } from "@/lib/api";
 import { fmtRelative, fmtDateTime } from "@/lib/utils";
 import { Badge, Button, Card, CardHeader, CardBody, Modal, Input, Textarea, PageLoader, Empty, ErrorBanner } from "@/components/ui";
 
-const TIERS = [
-  { key: "all",  label: "All leads" },
-  { key: "hot",  label: "Hot" },
-  { key: "warm", label: "Warm" },
-  { key: "cold", label: "Cold" },
-];
-
-function SendToLeadsModal({ initial, onClose }) {
+function SendToMembersModal({ initial, onClose }) {
   const qc = useQueryClient();
   const [title,   setTitle]   = useState(initial?.title || "");
   const [message, setMessage] = useState(initial?.message || "");
-  const [mode,    setMode]    = useState("audience"); // "audience" | "specific"
-  const [tier,    setTier]    = useState("all");
+  const [mode,    setMode]    = useState("all"); // "all" | "specific"
   const [selected, setSelected] = useState(() => new Set()); // Set<phone>
   const [search,  setSearch]  = useState("");
   const [error,   setError]   = useState("");
   const [result,  setResult]  = useState(null);
 
-  // Count for the current tier (audience mode)
   const { data: audience, isLoading: audLoading } = useQuery({
-    queryKey: ["leadsAudience", tier],
-    queryFn: () => api.broadcastLeadsAudience(tier === "all" ? "" : tier),
+    queryKey: ["membersAudience"],
+    queryFn: api.broadcastMembersAudience,
   });
-
-  // Full contact list for the picker (specific mode)
-  const { data: allAudience } = useQuery({
-    queryKey: ["leadsAudience", "all"],
-    queryFn: () => api.broadcastLeadsAudience(""),
-  });
-  const contacts = allAudience?.recipients || [];
+  const contacts = audience?.recipients || [];
   const filteredContacts = contacts.filter((c) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -60,10 +45,10 @@ function SendToLeadsModal({ initial, onClose }) {
   }
 
   const sendMutation = useMutation({
-    mutationFn: () => api.sendToLeads(
+    mutationFn: () => api.sendToMembers(
       mode === "specific"
         ? { title, message, phones: [...selected] }
-        : { title, message, tier: tier === "all" ? undefined : tier }
+        : { title, message }
     ),
     onSuccess: (data) => {
       setResult(data);
@@ -75,13 +60,13 @@ function SendToLeadsModal({ initial, onClose }) {
   function submit() {
     setError("");
     if (!message.trim()) { setError("Message is required."); return; }
-    if (count === 0)      { setError(mode === "specific" ? "Select at least one contact." : "No leads match this audience."); return; }
+    if (count === 0)      { setError(mode === "specific" ? "Select at least one contact." : "No registered members to send to."); return; }
     if (!confirm(`Send this message to ${count} contact${count !== 1 ? "s" : ""} on WhatsApp now?`)) return;
     sendMutation.mutate();
   }
 
   return (
-    <Modal open onClose={onClose} title="Send to Leads" width="max-w-lg">
+    <Modal open onClose={onClose} title="Send to Members" width="max-w-lg">
       <div className="p-6 space-y-4">
         {result ? (
           <div className="space-y-4">
@@ -114,7 +99,7 @@ function SendToLeadsModal({ initial, onClose }) {
             {/* Mode toggle */}
             <div className="flex gap-1.5">
               {[
-                { key: "audience", label: "By audience" },
+                { key: "all",      label: "All registered members" },
                 { key: "specific", label: "Specific contacts" },
               ].map((m) => (
                 <button
@@ -129,27 +114,11 @@ function SendToLeadsModal({ initial, onClose }) {
               ))}
             </div>
 
-            {mode === "audience" ? (
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Audience</label>
-                <div className="flex gap-1.5 flex-wrap">
-                  {TIERS.map((t) => (
-                    <button
-                      key={t.key}
-                      onClick={() => setTier(t.key)}
-                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                        tier === t.key ? "bg-navy-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-500">
-                  <Users size={14} />
-                  {audLoading ? "Counting recipients…" : <span><strong className="text-slate-800">{count}</strong> lead{count !== 1 ? "s" : ""} will receive this message</span>}
-                </p>
-              </div>
+            {mode === "all" ? (
+              <p className="flex items-center gap-1.5 text-sm text-slate-500">
+                <Users size={14} />
+                {audLoading ? "Counting recipients…" : <span><strong className="text-slate-800">{count}</strong> member{count !== 1 ? "s" : ""} will receive this message</span>}
+              </p>
             ) : (
               <div>
                 <div className="flex items-center justify-between mb-1.5">
@@ -170,7 +139,7 @@ function SendToLeadsModal({ initial, onClose }) {
                 />
                 <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
                   {contacts.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-6">No captured contacts yet</p>
+                    <p className="text-sm text-slate-400 text-center py-6">No registered members yet</p>
                   ) : filteredContacts.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-6">No contacts match your search</p>
                   ) : (
@@ -197,17 +166,17 @@ function SendToLeadsModal({ initial, onClose }) {
               label="Campaign Title (optional)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. New Launch — Lotus"
+              placeholder="e.g. New fact-check published"
             />
             <Textarea
               label="Message *"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Hello {name}! We have an exciting update at Devtraco Plus…"
+              placeholder="Hello {name}! We just published a new fact-check on Kasagadi AI…"
               rows={6}
             />
             <p className="text-xs text-slate-400">
-              Use <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">{"{name}"}</code> to personalise with each lead's name.
+              Use <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">{"{name}"}</code> to personalise with each member's name.
             </p>
 
             <div className="flex gap-2 justify-end pt-1">
@@ -225,7 +194,6 @@ function SendToLeadsModal({ initial, onClose }) {
 
 export default function Broadcasts() {
   const [showForm, setShowForm] = useState(false);
-  // Draft uses { title, message } — NOT { name, message }
   const [form, setForm] = useState({ title: "", message: "" });
   const [formError, setFormError] = useState("");
   const [sendCompose, setSendCompose] = useState(null); // null | { title, message }
@@ -257,20 +225,19 @@ export default function Broadcasts() {
 
   return (
     <div className="space-y-5 max-w-[1400px]">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Broadcasts</h2>
-          <p className="text-sm text-slate-400">Send bulk WhatsApp messages to your leads</p>
+          <p className="text-sm text-slate-400">Send bulk WhatsApp messages to registered members — e.g. new fact-check alerts</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" icon={Send} onClick={() => setSendCompose({ title: "", message: "" })}>Send to Leads</Button>
-          <Button icon={Plus} onClick={() => { setShowForm(true); setFormError(""); }}>New Draft</Button>
+          <Button variant="secondary" icon={Send} onClick={() => setSendCompose({ title: "", message: "" })} className="flex-1 sm:flex-none justify-center">Send to Members</Button>
+          <Button icon={Plus} onClick={() => { setShowForm(true); setFormError(""); }} className="flex-1 sm:flex-none justify-center">New Draft</Button>
         </div>
       </div>
 
-      {/* Send-to-leads modal */}
       {sendCompose && (
-        <SendToLeadsModal initial={sendCompose} onClose={() => setSendCompose(null)} />
+        <SendToMembersModal initial={sendCompose} onClose={() => setSendCompose(null)} />
       )}
 
       {/* Draft form modal */}
@@ -281,17 +248,17 @@ export default function Broadcasts() {
             label="Campaign Title *"
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            placeholder="e.g. June Promo — Arlo Cantonments"
+            placeholder="e.g. Weekly fact-check digest"
           />
           <Textarea
             label="Message *"
             value={form.message}
             onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
-            placeholder="Hello {name}! We have an exciting update at Devtraco Plus…"
+            placeholder="Hello {name}! We just published a new fact-check on Kasagadi AI…"
             rows={5}
           />
           <p className="text-xs text-slate-400">
-            Use <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">{"{name}"}</code> to personalise with the lead's first name.
+            Use <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono">{"{name}"}</code> to personalise with the member's first name.
           </p>
           <div className="flex gap-2 justify-end pt-1">
             <Button variant="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button>

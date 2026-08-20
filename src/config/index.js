@@ -16,12 +16,22 @@ const config = {
     },
   },
 
-  // OpenAI
-  openai: {
-    apiKey: process.env.OPENAI_API_KEY,
-    model: "gpt-4o-mini",
-    maxTokens: 600,     // slightly higher for more complete, friendly replies
-    temperature: 0.7,   // warmer, more natural and conversational tone
+  // Mansa AI — https://mansa-control-plane-623708969253.us-central1.run.app
+  mansa: {
+    baseUrl: process.env.MANSA_BASE_URL || "https://mansa-control-plane-623708969253.us-central1.run.app",
+    apiKey: process.env.MANSA_API_KEY || "", // not required today; endpoint is open. Set if Mansa adds auth later.
+    maxTokens: 900,
+    temperature: 0.5,       // lower — this is a fact-checking assistant, not a creative one
+    webSearch: "auto",      // let Mansa decide when to ground answers in live search
+    responseLanguage: "source", // reply in the language the user wrote in (English/Twi/Hausa)
+    historyTurns: 16,       // stay under Mansa's 20-turn history limit
+  },
+
+  // Kasagadi Claims API — https://kasagadi.ai/api/v1 (read-only, published claims only)
+  // Documented at docs.kasagadi.ai. Key is issued by the Kasagadi team.
+  kasagadi: {
+    apiBaseUrl: process.env.KASAGADI_API_BASE_URL || "https://kasagadi.ai/api/v1",
+    apiKey: process.env.KASAGADI_API_KEY || "",
   },
 
   // Session — 24h so users can return within a day without re-onboarding
@@ -32,7 +42,7 @@ const config = {
   // MongoDB
   mongodb: {
     uri: process.env.MONGODB_URI || "",
-    dbName: process.env.MONGODB_DB_NAME || "devtraco-bot",
+    dbName: process.env.MONGODB_DB_NAME || "kasagadi-bot",
   },
 
   // Rate limiting
@@ -41,61 +51,35 @@ const config = {
     maxRequests: 30,        // per user per window
   },
 
-  // Lead scoring thresholds
-  leadScoring: {
-    hot: 80,
-    warm: 50,
-    cold: 0,
-  },
-
   // Admin dashboard authentication
   admin: {
     username: process.env.ADMIN_USERNAME || "admin",
-    password: process.env.ADMIN_PASSWORD || "devtraco2026",
-    jwtSecret: process.env.JWT_SECRET || "devtraco-bot-secret-" + (process.env.WHATSAPP_TOKEN || "").slice(-8),
+    password: process.env.ADMIN_PASSWORD || "kasagadi2026",
+    jwtSecret: process.env.JWT_SECRET || "kasagadi-bot-secret-" + (process.env.WHATSAPP_TOKEN || "").slice(-8),
     tokenExpiry: 24 * 60 * 60 * 1000, // 24 hours
   },
 
-  // Email (SMTP via Nodemailer — optional)
-  email: {
-    host: process.env.SMTP_HOST || "",
-    port: parseInt(process.env.SMTP_PORT || "587", 10),
-    user: process.env.SMTP_USER || "",
-    pass: process.env.SMTP_PASS || "",
-    from: process.env.SMTP_FROM || process.env.SMTP_USER || "noreply@devtracoplus.com",
-  },
-
-  // Microsoft Dynamics 365 CRM
-  dynamics: {
-    enabled: !!(process.env.DYNAMICS_ORG_URL && process.env.DYNAMICS_CLIENT_ID),
-    orgUrl: process.env.DYNAMICS_ORG_URL || "",
-    tenantId: process.env.DYNAMICS_TENANT_ID || "",
-    clientId: process.env.DYNAMICS_CLIENT_ID || "",
-    clientSecret: process.env.DYNAMICS_CLIENT_SECRET || "",
-  },
-
-  // Company info for the AI system prompt
+  // Company info for the AI system prompt + WhatsApp footers
   company: {
-    name: "Devtraco Plus",
-    industry: "Real Estate Development",
+    name: "Kasagadi AI",
+    industry: "Fact-Checking & Misinformation Context",
     description:
-      "Devtraco Plus is an industry leading real estate developer that has successfully created a unique niche for its exclusive premium quality housing units in prime areas of Accra, Ghana. Carved out of the well-known echelons of the Devtraco brand, our company promises nothing but excellence in delivery and service. All our developments possess a signature style and character, expertly designed to effectively function with modern finishings, and built with materials that reflect our commitment to quality. On offer are suites, studios, 1-2-3 bedroom apartments, 5-bedroom townhouses, and surveyed land investment plots through the Woodlands master-planned community in Dawhenya, Greater Accra.",
-    website: "https://devtracoplus.com",
-    phone: "+233270000004",           // Office contact
-    escalationWhatsApp: "+233508654407", // Escalation WhatsApp (residential)
-    landSalesWhatsApp:  "+233537675961", // Land sales agent WhatsApp
-    cellPhone: "+233270000004",
-    email: "info@devtracoplus.com",
-    address: "No. 8B, Sir Arku Korsah Road, Airport Residential Area, Accra, Ghana",
-    tone: "premium",
-    businessHours: "Monday – Friday, 8:00 AM – 5:00 PM",
-    brandColors: { primary: "#000000", secondary: "#FFFFFF", accent: "Corporate Gold" },
-    catalogueUrl: process.env.CATALOGUE_URL || "https://devtracoplus.com/catalogue.pdf", // Catalogue PDF link
+      "Kasagadi AI is a fact-checking and misinformation-context service for Ghana and the wider region. It helps people check the background of circulating stories, headlines, and rumours, surfaces relevant past fact-checks, and explains the cultural or local context behind claims — in English, Twi, and Hausa.",
+    website: "https://www.kasagadi.ai",
+    phone: process.env.COMPANY_PHONE || "+233597309383",           // WhatsApp: MTN 0597309383
+    escalationWhatsApp: process.env.ESCALATION_WHATSAPP || "+233597309383", // human review/fact-checker team handoff
+    email: process.env.COMPANY_EMAIL || "hello@kasagadi.ai",
+    address: process.env.COMPANY_ADDRESS || "Accra, Ghana",
+    tone: "trustworthy, calm, non-judgmental",
+    businessHours: "Monday – Friday, 8:00 AM – 6:00 PM GMT (the AI itself is always on; human review follows these hours)",
+    // Read from the live kasagadi.ai homepage (Ghana-flag themed) — close approximations
+    // from a screenshot, not exact source hex. Ask Jules for exact tokens if it matters.
+    brandColors: { primary: "#1E3F6B", secondary: "#F7F6F1", accent: "#D4A017", flagRed: "#CE1126", flagGreen: "#006B3F" },
   },
 };
 
 // Validate required env vars
-const required = ["VERIFY_TOKEN", "WHATSAPP_TOKEN", "PHONE_NUMBER_ID", "OPENAI_API_KEY"];
+const required = ["VERIFY_TOKEN", "WHATSAPP_TOKEN", "PHONE_NUMBER_ID"];
 for (const key of required) {
   if (!process.env[key]) {
     console.error(`Missing required environment variable: ${key}`);

@@ -2,11 +2,11 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle, Clock, Phone, MessageSquare,
-  CheckCircle, Siren, TrendingUp, Zap,
+  CheckCircle, Siren, Zap,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { fmtRelative, fmtPhone, truncate, avatarColor, initials } from "@/lib/utils";
-import { Card, CardHeader, CardBody, Badge, PageLoader, Empty, StatCard, Modal, ScoreBar } from "@/components/ui";
+import { Card, CardHeader, CardBody, Badge, PageLoader, Empty, StatCard, Modal } from "@/components/ui";
 
 /* ── helpers ────────────────────────────────────────────── */
 function waitDuration(lastActivity) {
@@ -37,15 +37,11 @@ const URGENCY_STYLES = {
 function computeInsights(escalations) {
   if (!escalations.length) return [];
   const now = Date.now();
-  const urgent  = escalations.filter((l) => urgencyLevel(l.lastActivity) === "critical").length;
-  const high    = escalations.filter((l) => urgencyLevel(l.lastActivity) === "high").length;
+  const urgent = escalations.filter((l) => urgencyLevel(l.lastActivity) === "critical").length;
+  const high   = escalations.filter((l) => urgencyLevel(l.lastActivity) === "high").length;
   const totalWait = escalations.reduce((s, l) => s + (l.lastActivity ? now - new Date(l.lastActivity) : 0), 0);
   const avgWaitMins = Math.floor(totalWait / escalations.length / 60000);
   const avgWait = avgWaitMins > 60 ? `${Math.floor(avgWaitMins / 60)}h ${avgWaitMins % 60}m` : `${avgWaitMins}m`;
-
-  const propMap = {};
-  escalations.forEach((l) => { if (l.propertyInterest) propMap[l.propertyInterest] = (propMap[l.propertyInterest] || 0) + 1; });
-  const topProp = Object.entries(propMap).sort((a, b) => b[1] - a[1])[0];
 
   const insights = [];
   if (urgent > 0)
@@ -53,8 +49,6 @@ function computeInsights(escalations) {
   if (high > 0)
     insights.push({ level: "high", icon: AlertTriangle, text: `${high} escalation${high > 1 ? "s" : ""} waiting 1–2 hours — respond soon` });
   insights.push({ level: "info", icon: Clock, text: `Average wait time across all open escalations: ${avgWait}` });
-  if (topProp)
-    insights.push({ level: "info", icon: TrendingUp, text: `Most escalations are about "${topProp[0]}" (${topProp[1]} case${topProp[1] > 1 ? "s" : ""})` });
 
   return insights;
 }
@@ -79,7 +73,7 @@ export default function Escalations() {
   if (isLoading) return <PageLoader />;
 
   const all = escData?.escalations || [];
-  const awaiting  = all.filter((l) => !l.escalationStatus || l.escalationStatus === "awaiting_agent");
+  const awaiting  = all.filter((l) => !l.escalationStatus || l.escalationStatus === "awaiting_reviewer");
   const responded = all.filter((l) => l.escalationStatus === "responded");
 
   const filtered = filter === "all" ? all
@@ -93,10 +87,10 @@ export default function Escalations() {
     <div className="space-y-6 max-w-[1400px]">
 
       {/* ── KPI row ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Escalations" value={all.length}       icon={Siren}        color="red"   sub="All time" />
-        <StatCard label="Awaiting Agent"     value={awaiting.length}  icon={Clock}        color="amber" sub="Need response now" />
-        <StatCard label="Responded"          value={responded.length} icon={CheckCircle}  color="green" sub="Agent replied" />
+        <StatCard label="Awaiting Reviewer"  value={awaiting.length}  icon={Clock}        color="amber" sub="Need response now" />
+        <StatCard label="Responded"          value={responded.length} icon={CheckCircle}  color="green" sub="Reviewer replied" />
         <StatCard label="Critical (2h+)"
           value={all.filter((l) => urgencyLevel(l.lastActivity) === "critical").length}
           icon={AlertTriangle} color="red" sub="Urgent — over 2 hours" />
@@ -108,7 +102,7 @@ export default function Escalations() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Zap size={16} className="text-red-500" />
-              <p className="font-semibold text-slate-900 text-sm">AI Escalation Analysis</p>
+              <p className="font-semibold text-slate-900 text-sm">Escalation Analysis</p>
             </div>
             <p className="text-xs text-slate-400">Real-time assessment of open escalations</p>
           </CardHeader>
@@ -165,7 +159,7 @@ export default function Escalations() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  {["Priority", "Contact", "Score", "Property Interest", "Waiting", "Last Message", ""].map((h, i) => (
+                  {["Priority", "Contact", "Reason", "Waiting", "Last Message", ""].map((h, i) => (
                     <th key={i} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -193,16 +187,13 @@ export default function Escalations() {
                               {initials(l.name || l.userId)}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-semibold text-slate-800 truncate">{l.name || "Unknown"}</p>
+                              <p className="font-semibold text-slate-800 truncate">{l.name || "Guest"}</p>
                               <p className="text-xs text-slate-400">{fmtPhone(l.userId)}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 w-28">
-                          <ScoreBar score={l.score} />
-                        </td>
-                        <td className="px-4 py-3 text-slate-600 max-w-[180px]">
-                          <p className="truncate">{l.propertyInterest || "—"}</p>
+                        <td className="px-4 py-3 text-slate-600 max-w-[220px]">
+                          <p className="truncate">{l.escalationReason || "—"}</p>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`text-sm font-semibold tabular-nums ${
@@ -242,13 +233,11 @@ export default function Escalations() {
                   {initials(selected.name || selected.userId)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xl font-bold text-white">{selected.name || "Unknown"}</h3>
+                  <h3 className="text-xl font-bold text-white">{selected.name || "Guest"}</h3>
                   <p className="text-white/60 text-sm">{fmtPhone(selected.userId)}</p>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     <Badge className="bg-red-500/30 text-red-200 border-0">Escalated</Badge>
-                    {selected.propertyInterest && (
-                      <Badge className="bg-white/15 text-white/90 border-0">{selected.propertyInterest}</Badge>
-                    )}
+                    {selected.registered && <Badge className="bg-white/15 text-white/90 border-0">Registered member</Badge>}
                   </div>
                 </div>
                 <div className="text-right shrink-0">
@@ -268,10 +257,7 @@ export default function Escalations() {
             <div className="px-6 py-4 grid grid-cols-2 gap-3 border-b border-slate-100 text-sm">
               {[
                 { label: "Phone", value: fmtPhone(selected.userId) },
-                { label: "Email", value: selected.email },
-                { label: "Country", value: selected.country },
-                { label: "Budget", value: selected.budget },
-                { label: "Score", value: selected.score },
+                { label: "Reason", value: selected.escalationReason },
                 { label: "Last active", value: fmtRelative(selected.lastActivity) },
               ].map(({ label, value }) => (
                 <div key={label}>

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardHeader, CardBody, Badge, PageLoader, StatCard } from "@/components/ui";
-import { Server, Bot, Clock, Zap, Database, Shield, RefreshCw } from "lucide-react";
+import { Server, Bot, Clock, Zap, Shield, RefreshCw } from "lucide-react";
 import { fmtDateTime } from "@/lib/utils";
 
 function InfoRow({ label, value, mono }) {
@@ -40,7 +40,7 @@ export default function Settings() {
       </div>
 
       {/* Health KPIs */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard label="Server Uptime"    value={uptimeStr}                     icon={Clock}  color="green" sub="Since last restart" />
         <StatCard label="Active Sessions"  value={health?.activeSessions ?? 0}   icon={Zap}    color="brand" sub="Live conversations now" />
       </div>
@@ -60,11 +60,11 @@ export default function Settings() {
         <CardBody className="p-0 px-5">
           <InfoRow label="Status"                  value={<Badge variant="green" dot>Operational</Badge>} />
           <InfoRow label="Last health check"        value={fmtDateTime(health?.timestamp)} />
-          <InfoRow label="Total leads"              value={(stats?.leads?.total || 0).toLocaleString()} />
+          <InfoRow label="Total conversations"      value={(stats?.totalConversations || 0).toLocaleString()} />
           <InfoRow label="Total messages processed" value={(stats?.totalMessages || 0).toLocaleString()} />
-          <InfoRow label="Active properties"        value={stats?.properties || 0} />
-          <InfoRow label="Pending viewings"         value={stats?.pendingViewings || 0} />
-          <InfoRow label="Open escalations"         value={stats?.awaitingAgent || 0} />
+          <InfoRow label="Published claims"         value={stats?.claims || 0} />
+          <InfoRow label="Registered members"       value={stats?.members || 0} />
+          <InfoRow label="Open escalations"         value={stats?.awaitingReviewer || 0} />
         </CardBody>
       </Card>
 
@@ -78,14 +78,14 @@ export default function Settings() {
         </CardHeader>
         <CardBody>
           <p className="text-sm text-slate-500 mb-4 leading-relaxed">
-            All bot settings (API keys, phone numbers, AI model, escalation contacts, CRM) are managed via environment variables on the server. Update them in your Render service environment settings.
+            All bot settings (WhatsApp API keys, Mansa endpoint, database, escalation contact) are managed via environment variables on the server. See <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-xs">.env.example</code> in the repo, and update them in your hosting provider's environment settings.
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[
-              "WHATSAPP_TOKEN", "WHATSAPP_PHONE_NUMBER_ID",
-              "OPENAI_API_KEY", "MONGODB_URI",
-              "ADMIN_USERNAME", "JWT_SECRET",
-              "SMTP_HOST", "BASE_URL",
+              "WHATSAPP_TOKEN", "PHONE_NUMBER_ID",
+              "VERIFY_TOKEN", "MANSA_BASE_URL",
+              "MONGODB_URI", "ADMIN_USERNAME",
+              "JWT_SECRET", "ESCALATION_WHATSAPP",
             ].map((k) => (
               <div key={k} className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
@@ -107,7 +107,7 @@ export default function Settings() {
         <CardBody className="p-0 px-5">
           <InfoRow label="Authentication"  value="HMAC-SHA256 JWT · 24h expiry" />
           <InfoRow label="Rate limiting"   value="Active on webhook endpoint" />
-          <InfoRow label="GDPR consent"    value="Collected before lead capture" />
+          <InfoRow label="Mansa AI"        value="Public endpoint — no sensitive data sent" />
         </CardBody>
       </Card>
 
@@ -122,7 +122,7 @@ export default function Settings() {
           </p>
           <button
             onClick={async () => {
-              if (!confirm("⚠️ This will permanently delete ALL conversation history and lead data. This cannot be undone.\n\nAre you absolutely sure?")) return;
+              if (!confirm("⚠️ This will permanently delete ALL conversation history. Registered members and published claims are not affected.\n\nAre you absolutely sure?")) return;
               try {
                 await clearMutation.mutateAsync();
                 alert("All conversations have been cleared.");
@@ -133,7 +133,7 @@ export default function Settings() {
             disabled={clearMutation.isPending}
             className="px-4 py-2.5 text-sm font-medium text-red-600 border border-red-300 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
           >
-            {clearMutation.isPending ? "Clearing…" : "Clear all conversations & lead data"}
+            {clearMutation.isPending ? "Clearing…" : "Clear all conversation history"}
           </button>
         </CardBody>
       </Card>

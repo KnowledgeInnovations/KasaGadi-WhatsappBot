@@ -1,5 +1,18 @@
+import dns from "dns";
 import mongoose from "mongoose";
 import config from "../config/index.js";
+
+// Some networks (mobile hotspots, certain routers/ISPs, occasionally hosting
+// providers) block or mishandle the DNS SRV queries that `mongodb+srv://`
+// URIs rely on, even though normal DNS lookups work fine on the same network.
+// Forcing Node's resolver to a public DNS server avoids that class of failure.
+// Safe to apply globally — these are the same resolvers most systems already
+// trust for regular browsing.
+try {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch (err) {
+  console.warn("[DB] Could not override DNS servers:", err.message);
+}
 
 /**
  * Connect to MongoDB Atlas.

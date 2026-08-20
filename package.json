@@ -1,9 +1,9 @@
 {
-  "name": "devtraco-whatsapp-bot",
+  "name": "kasagadi-whatsapp-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Kasagadi AI fact-checking WhatsApp assistant, powered by the Mansa model.",
   "type": "module",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
@@ -20,10 +20,7 @@
     "express-rate-limit": "^8.2.1",
     "mongoose": "^9.2.2",
     "multer": "^2.0.2",
-    "nodemailer": "^8.0.1",
-    "openai": "^6.22.0",
-    "uuid": "^13.0.0",
-    "xlsx": "^0.18.5"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "pptxgenjs": "^4.0.1"

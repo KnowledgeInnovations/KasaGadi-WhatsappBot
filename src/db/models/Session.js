@@ -7,25 +7,20 @@ const messageSchema = new mongoose.Schema({
   mediaUrl:  { type: String, default: null },
 }, { _id: false });
 
-const leadDataSchema = new mongoose.Schema({
-  name:              String,
-  email:             String,
-  phone:             String,
-  country:           String,
-  budget:            String,
-  propertyInterest:  String,
-  preferredLocation: String,
-  timeline:          String,
+const profileSchema = new mongoose.Schema({
+  name:       String,
+  email:      String,
+  phone:      String,
+  registered: { type: Boolean, default: false },
+  memberId:   String,
 }, { _id: false });
 
 const sessionSchema = new mongoose.Schema({
   userId:        { type: String, required: true, unique: true, index: true },
   history:       [messageSchema],
   state:         { type: String, default: "GREETING" },
-  leadData:      { type: leadDataSchema, default: () => ({}) },
-  leadScore:     { type: Number, default: 0 },
+  profile:       { type: profileSchema, default: () => ({}) },
   lastActivity:  { type: Number, default: Date.now },
-  consentGiven:  { type: Boolean, default: false },
   metadata:      { type: mongoose.Schema.Types.Mixed, default: {} },
 }, {
   timestamps: true,

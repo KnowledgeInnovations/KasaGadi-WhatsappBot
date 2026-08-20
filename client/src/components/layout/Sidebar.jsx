@@ -1,76 +1,60 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, Users, Building2, MessageSquare,
-  Calendar, Megaphone, Settings, LogOut, ChevronRight, Siren,
+  LayoutDashboard, ShieldCheck, Users, MessageSquare,
+  Siren, Megaphone, Settings, LogOut, ChevronRight, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const LOGO_FULL  = "https://devtracoplus.com/site/assets/files/1/devtracoplus_logo_298_x_125_-01.png";
-const LOGO_ICON  = "https://devtracogroup.com/wp-content/uploads/2019/06/DG-favv.svg";
-
 const nav = [
   { to: "/app/overview",      icon: LayoutDashboard, label: "Overview"      },
-  { to: "/app/leads",         icon: Users,           label: "Leads"         },
-  { to: "/app/properties",    icon: Building2,       label: "Properties"    },
+  { to: "/app/claims",        icon: ShieldCheck,      label: "Claims"        },
+  { to: "/app/members",       icon: Users,           label: "Members"       },
   { to: "/app/conversations", icon: MessageSquare,   label: "Conversations" },
   { to: "/app/escalations",   icon: Siren,           label: "Escalations"   },
-  { to: "/app/viewings",      icon: Calendar,        label: "Viewings"      },
   { to: "/app/broadcasts",    icon: Megaphone,       label: "Broadcasts"    },
 ];
 
-export default function Sidebar({ collapsed, onToggle }) {
+// `collapsed` is a desktop-only concept (icon-only rail at lg+). On mobile the
+// drawer is always full width, so label text is hidden with `lg:hidden` when
+// collapsed — never unconditionally — so it still shows on the mobile drawer.
+export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }) {
   const navigate = useNavigate();
 
   function logout() {
-    localStorage.removeItem("dt_token");
+    localStorage.removeItem("kg_token");
     navigate("/app/login");
   }
 
   return (
     <aside className={cn(
-      "relative flex flex-col bg-navy-900 text-white transition-all duration-300 ease-in-out shrink-0",
-      collapsed ? "w-16" : "w-60"
+      "flex flex-col bg-navy-900 text-white transition-all duration-300 ease-in-out shrink-0",
+      "fixed inset-y-0 left-0 z-40 w-72",
+      mobileOpen ? "translate-x-0" : "-translate-x-full",
+      "lg:static lg:translate-x-0 lg:z-auto",
+      collapsed ? "lg:w-16" : "lg:w-60"
     )}>
       {/* Logo */}
-      <div className={cn(
-        "flex items-center h-16 border-b border-white/10 overflow-hidden",
-        collapsed ? "justify-center px-3" : "px-5 gap-3"
-      )}>
-        {collapsed ? (
-          /* Small icon version when collapsed */
-          <img
-            src={LOGO_ICON}
-            alt="Devtraco"
-            className="w-8 h-8 object-contain"
-            onError={(e) => {
-              e.target.style.display = "none";
-              e.target.insertAdjacentHTML("afterend",
-                `<div class="w-8 h-8 bg-gold-DEFAULT rounded-lg flex items-center justify-center text-white font-bold text-xs">D</div>`
-              );
-            }}
-          />
-        ) : (
-          /* Full logo when expanded */
-          <img
-            src={LOGO_FULL}
-            alt="Devtraco Plus"
-            className="h-7 w-auto object-contain object-left"
-            onError={(e) => {
-              e.target.style.display = "none";
-              e.target.insertAdjacentHTML("afterend",
-                `<span class="text-white font-bold text-sm tracking-wide">Devtraco Plus</span>`
-              );
-            }}
-          />
-        )}
+      <div className={cn("flex items-center h-16 border-b border-white/10 px-5 gap-3 shrink-0", collapsed && "lg:justify-center lg:px-3")}>
+        <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0">
+          K
+        </div>
+        <span className={cn("text-white font-bold text-sm tracking-wide truncate flex-1", collapsed && "lg:hidden")}>
+          Kasagadi AI
+        </span>
+        {/* Mobile close button */}
+        <button
+          onClick={onMobileClose}
+          className="lg:hidden p-1.5 -mr-1.5 text-white/50 hover:text-white transition-colors shrink-0"
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* Section label */}
-      {!collapsed && (
-        <p className="px-4 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-          Command Centre
-        </p>
-      )}
+      <p className={cn("px-4 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-white/30", collapsed && "lg:hidden")}>
+        Bot Console
+      </p>
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto scrollbar-hide">
@@ -89,8 +73,8 @@ export default function Sidebar({ collapsed, onToggle }) {
             {({ isActive }) => (
               <>
                 <Icon size={18} className="shrink-0" />
-                {!collapsed && <span className="flex-1 truncate">{label}</span>}
-                {!collapsed && isActive && <ChevronRight size={13} className="opacity-60 shrink-0" />}
+                <span className={cn("flex-1 truncate", collapsed && "lg:hidden")}>{label}</span>
+                {isActive && <ChevronRight size={13} className={cn("opacity-60 shrink-0", collapsed && "lg:hidden")} />}
               </>
             )}
           </NavLink>
@@ -98,7 +82,7 @@ export default function Sidebar({ collapsed, onToggle }) {
       </nav>
 
       {/* Bottom */}
-      <div className="px-2 pb-4 space-y-0.5 border-t border-white/10 pt-3">
+      <div className="px-2 pb-4 space-y-0.5 border-t border-white/10 pt-3 shrink-0">
         <NavLink
           to="/app/settings"
           title={collapsed ? "Settings" : undefined}
@@ -108,7 +92,7 @@ export default function Sidebar({ collapsed, onToggle }) {
           )}
         >
           <Settings size={18} className="shrink-0" />
-          {!collapsed && <span>Settings</span>}
+          <span className={cn(collapsed && "lg:hidden")}>Settings</span>
         </NavLink>
         <button
           onClick={logout}
@@ -116,14 +100,14 @@ export default function Sidebar({ collapsed, onToggle }) {
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-white/55 hover:bg-red-500/15 hover:text-red-400 transition-all"
         >
           <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span>Sign out</span>}
+          <span className={cn(collapsed && "lg:hidden")}>Sign out</span>
         </button>
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — desktop only, doesn't apply to the mobile drawer */}
       <button
         onClick={onToggle}
-        className="absolute -right-3 top-[68px] z-20 w-6 h-6 bg-navy-900 border border-white/20 rounded-full flex items-center justify-center text-white/50 hover:text-white transition-colors shadow-md"
+        className="hidden lg:flex absolute -right-3 top-[68px] z-20 w-6 h-6 bg-navy-900 border border-white/20 rounded-full items-center justify-center text-white/50 hover:text-white transition-colors shadow-md"
         title={collapsed ? "Expand" : "Collapse"}
       >
         <ChevronRight size={12} className={cn("transition-transform duration-300", collapsed ? "" : "rotate-180")} />

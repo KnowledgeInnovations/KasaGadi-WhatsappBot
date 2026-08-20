@@ -1,22 +1,19 @@
 import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Menu } from "lucide-react";
 import { api } from "@/lib/api";
 
 const TITLES = {
   "/app/overview":      "Overview",
-  "/app/leads":         "Leads",
-  "/app/properties":    "Properties",
+  "/app/claims":        "Claims",
+  "/app/members":       "Members",
   "/app/conversations": "Conversations",
   "/app/escalations":   "Escalations",
-  "/app/viewings":      "Viewings",
   "/app/broadcasts":    "Broadcasts",
   "/app/settings":      "Settings",
 };
 
-const LOGO = "https://devtracoplus.com/site/assets/files/1/devtracoplus_logo_298_x_125_-01.png";
-
-export default function Topbar({ onRefresh }) {
+export default function Topbar({ onRefresh, onMenuClick }) {
   const { pathname } = useLocation();
   const qc = useQueryClient();
   const title = TITLES[pathname] || "Dashboard";
@@ -38,16 +35,21 @@ export default function Topbar({ onRefresh }) {
   }
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-6 gap-4 shrink-0 z-10">
-      {/* Mobile logo */}
-      <img src={LOGO} alt="Devtraco Plus" className="h-6 w-auto object-contain lg:hidden"
-        onError={(e) => e.target.style.display = "none"} />
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center px-3 sm:px-6 gap-2 sm:gap-4 shrink-0 z-10">
+      {/* Mobile menu trigger */}
+      <button
+        onClick={onMenuClick}
+        className="lg:hidden p-2 -ml-1 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors shrink-0"
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
+      </button>
 
       <div className="flex-1 min-w-0">
-        <h1 className="text-base font-semibold text-slate-900">{title}</h1>
+        <h1 className="text-base font-semibold text-slate-900 truncate">{title}</h1>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Live status */}
         <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium">
           <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-300"}`} />
@@ -65,7 +67,7 @@ export default function Topbar({ onRefresh }) {
           <RefreshCw size={15} />
         </button>
 
-        <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold shrink-0" title="Admin">
+        <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold shrink-0" title="Signed in as admin">
           A
         </div>
       </div>

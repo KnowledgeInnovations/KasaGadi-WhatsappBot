@@ -1,7 +1,7 @@
 const BASE = "/api";
 
 function token() {
-  return localStorage.getItem("dt_token");
+  return localStorage.getItem("kg_token");
 }
 
 async function request(path, options = {}) {
@@ -17,7 +17,7 @@ async function request(path, options = {}) {
   });
 
   if (res.status === 401) {
-    localStorage.removeItem("dt_token");
+    localStorage.removeItem("kg_token");
     window.location.href = "/app/login";
     throw new Error("Unauthorized");
   }
@@ -44,9 +44,15 @@ export const api = {
   stats:  () => request("/stats"),
   health: () => request("/health"),
 
-  // Leads
-  leads: () => request("/leads"),
-  lead:  (id) => request(`/leads/${id}`),
+  // Claims (fact-checks) — read-only, live from the Kasagadi Claims API
+  claims: (q) => request(`/claims${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  claim:  (id) => request(`/claims/${id}`),
+
+  // Members (registered users)
+  members:      () => request("/members"),
+  createMember: (data) => request("/members", { method: "POST", body: JSON.stringify(data) }),
+  deleteMember: (id) => request(`/members/${id}`, { method: "DELETE" }),
+  memberWhatsappLink: (id, botNumber) => request(`/members/${id}/whatsapp-link?botNumber=${encodeURIComponent(botNumber)}`),
 
   // Escalations
   escalations: () => request("/escalations"),
@@ -56,31 +62,6 @@ export const api = {
   conversation:        (id) => request(`/conversations/${id}`),
   deleteConversation:  (id) => request(`/conversations/${id}`, { method: "DELETE" }),
   deleteAllConversations: () => request("/conversations", { method: "DELETE" }),
-
-  // Properties
-  properties:     () => request("/properties"),
-  property:       (id) => request(`/properties/${id}`),
-  createProperty: (data) => request("/properties", { method: "POST", body: JSON.stringify(data) }),
-  updateProperty: (id, data) => request(`/properties/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  deleteProperty: (id) => request(`/properties/${id}`, { method: "DELETE" }),
-  propertyImages: (id) => request(`/properties/${id}/images`),
-  propertyVideos: (id) => request(`/properties/${id}/videos`),
-  uploadImages: (id, files) => {
-    const fd = new FormData();
-    for (const f of files) fd.append("images", f);
-    return request(`/properties/${id}/images`, { method: "POST", body: fd });
-  },
-  deleteImage: (imageId) => request(`/images/${imageId}`, { method: "DELETE" }),
-  deleteVideo: (videoId) => request(`/videos/${videoId}`, { method: "DELETE" }),
-
-  // Viewings — status values MUST be uppercase: CONFIRMED | CANCELLED | COMPLETED
-  viewings:           () => request("/viewings"),
-  deleteViewing:      (id) => request(`/viewings/${id}`, { method: "DELETE" }),
-  deleteAllViewings:  () => request("/viewings", { method: "DELETE" }),
-  updateViewingStatus: (id, status) =>
-    request(`/viewings/${id}`, { method: "PATCH", body: JSON.stringify({ status }) }),
-  notifyAgent: (id) =>
-    request(`/viewings/${id}/notify-agent`, { method: "POST" }),
 
   // Broadcasts — drafts use { title, message } (not name)
   broadcastDrafts:  () => request("/broadcast/drafts"),
@@ -93,11 +74,7 @@ export const api = {
     request(`/broadcast/drafts/${id}`, { method: "DELETE" }),
   broadcastResults: () => request("/broadcast/results"),
   broadcastStatus:  () => request("/broadcast/status"),
-  // Send a broadcast to captured leads (message supports {name} personalisation)
-  broadcastLeadsAudience: (tier) => request(`/broadcast/leads-audience${tier ? `?tier=${tier}` : ""}`),
-  sendToLeads: (data) => request("/broadcast/send-leads", { method: "POST", body: JSON.stringify(data) }),
-
-  // CRM
-  crmStats: () => request("/crm/stats"),
-  crmLog:   () => request("/crm/log"),
+  // Send a broadcast to registered members (message supports {name} personalisation)
+  broadcastMembersAudience: () => request("/broadcast/members-audience"),
+  sendToMembers: (data) => request("/broadcast/send-members", { method: "POST", body: JSON.stringify(data) }),
 };

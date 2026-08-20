@@ -21,7 +21,6 @@ export async function getSession(userId) {
     const elapsed = (Date.now() - session.lastActivity) / 1000 / 60;
     if (elapsed > config.session.ttlMinutes) {
       cache.delete(userId);
-      // Reset conversation state but PRESERVE history and lead data
       return await resetSession(userId, session);
     }
     session.lastActivity = Date.now();
@@ -36,7 +35,6 @@ export async function getSession(userId) {
         session = docToSession(doc);
         const elapsed = (Date.now() - session.lastActivity) / 1000 / 60;
         if (elapsed > config.session.ttlMinutes) {
-          // Reset conversation state but PRESERVE history and lead data
           return await resetSession(userId, session);
         }
         session.lastActivity = Date.now();
@@ -56,11 +54,9 @@ export async function getSession(userId) {
  * no session reset. Returns null if session doesn't exist.
  */
 export async function getSessionReadOnly(userId) {
-  // Check cache first
   const cached = cache.get(userId);
   if (cached) return cached;
 
-  // Try loading from MongoDB without TTL check
   if (isDBConnected()) {
     try {
       const doc = await SessionModel.findOne({ userId }).lean();
@@ -78,18 +74,14 @@ export async function createSession(userId) {
     userId,
     history: [],
     state: "GREETING",
-    leadData: {
+    profile: {
       name: null,
       email: null,
       phone: userId,
-      budget: null,
-      propertyInterest: null,
-      preferredLocation: null,
-      timeline: null,
+      registered: false,
+      memberId: null,
     },
-    leadScore: 0,
     lastActivity: Date.now(),
-    consentGiven: false,
     metadata: {},
   };
   cache.set(userId, session);
@@ -99,30 +91,21 @@ export async function createSession(userId) {
 
 /**
  * Reset a session after TTL expiry — clears conversation state
- * but PRESERVES history and lead data for dashboard/CRM purposes.
+ * but PRESERVES history and profile for dashboard purposes.
  *
- * If the user is a known contact (name already captured), skip re-onboarding
- * and resume as ACTIVE so the AI can pick up the conversation naturally.
+ * Known users (name already captured) resume as ACTIVE — no re-onboarding.
  */
 async function resetSession(userId, oldSession) {
-  const hasName = !!oldSession?.leadData?.name;
+  const hasName = !!oldSession?.profile?.name;
   const session = {
     userId,
     history: oldSession?.history || [],
-    // Known users resume as ACTIVE — no re-onboarding needed
-    // New/anonymous users start fresh at GREETING
     state: hasName ? "ACTIVE" : "GREETING",
-    leadData: oldSession?.leadData || {
-      name: null, email: null, phone: userId,
-      budget: null, propertyInterest: null,
-      preferredLocation: null, timeline: null,
+    profile: oldSession?.profile || {
+      name: null, email: null, phone: userId, registered: false, memberId: null,
     },
-    leadScore: oldSession?.leadScore || 0,
     lastActivity: Date.now(),
-    consentGiven: oldSession?.consentGiven || false,
     metadata: {
-      // Clear transient metadata from old session but flag this as a resumption
-      // so messageHandler can optionally personalise the greeting
       returningUser: hasName,
     },
   };
@@ -149,18 +132,21 @@ export async function updateState(userId, newState) {
   return session;
 }
 
-export async function updateLeadData(userId, data) {
+export async function updateProfile(userId, data) {
   const session = await getSession(userId);
-  Object.assign(session.leadData, data);
+  Object.assign(session.profile, data);
   session.lastActivity = Date.now();
-  recalculateLeadScore(session);
   persistSession(session);
   return session;
 }
 
-export async function setConsent(userId, consent) {
+/**
+ * Persist arbitrary metadata changes made directly on the session object
+ * (e.g. session.metadata.foo = "bar") without changing profile fields.
+ */
+export async function touchSession(userId) {
   const session = await getSession(userId);
-  session.consentGiven = consent;
+  session.lastActivity = Date.now();
   persistSession(session);
   return session;
 }
@@ -219,13 +205,11 @@ async function persistSession(session) {
         userId: session.userId,
         history: session.history,
         state: session.state,
-        leadData: session.leadData,
-        leadScore: session.leadScore,
+        profile: session.profile,
         lastActivity: session.lastActivity,
-        consentGiven: session.consentGiven,
         metadata: session.metadata,
       },
-      { upsert: true, returnDocument: 'after' }
+      { upsert: true, returnDocument: "after" }
     );
   } catch (err) {
     console.error("[Session] Persist failed:", err.message);
@@ -237,31 +221,9 @@ function docToSession(doc) {
     userId: doc.userId,
     history: doc.history || [],
     state: doc.state || "GREETING",
-    leadData: doc.leadData || { name: null, email: null, phone: doc.userId, budget: null, propertyInterest: null, preferredLocation: null, timeline: null },
-    leadScore: doc.leadScore || 0,
+    profile: doc.profile || { name: null, email: null, phone: doc.userId, registered: false, memberId: null },
     lastActivity: doc.lastActivity || Date.now(),
     firstContact: doc.createdAt ? new Date(doc.createdAt).getTime() : (doc.lastActivity || Date.now()),
-    consentGiven: doc.consentGiven || false,
     metadata: doc.metadata || {},
   };
-}
-
-// ───────── Lead Scoring ─────────
-
-function recalculateLeadScore(session) {
-  let score = 0;
-  const ld = session.leadData;
-
-  if (ld.name) score += 15;
-  if (ld.email) score += 20;
-  if (ld.budget) score += 15;
-  if (ld.propertyInterest) score += 15;
-  if (ld.preferredLocation) score += 10;
-  if (ld.timeline) score += 10;
-
-  if (session.history.length > 5) score += 5;
-  if (session.history.length > 10) score += 5;
-  if (session.consentGiven) score += 5;
-
-  session.leadScore = Math.min(score, 100);
 }

@@ -2,16 +2,15 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AppLayout      from "@/components/layout/AppLayout";
 import Login          from "@/pages/Login";
 import Overview       from "@/pages/Overview";
-import Leads          from "@/pages/Leads";
-import Properties     from "@/pages/Properties";
+import Claims         from "@/pages/Claims";
+import Members        from "@/pages/Members";
 import Conversations  from "@/pages/Conversations";
 import Escalations    from "@/pages/Escalations";
-import Viewings       from "@/pages/Viewings";
 import Broadcasts     from "@/pages/Broadcasts";
 import Settings       from "@/pages/Settings";
 
 function PrivateRoute({ children }) {
-  return localStorage.getItem("dt_token") ? children : <Navigate to="/app/login" replace />;
+  return localStorage.getItem("kg_token") ? children : <Navigate to="/app/login" replace />;
 }
 
 export default function App() {
@@ -29,11 +28,10 @@ export default function App() {
         >
           <Route index                    element={<Navigate to="/app/overview" replace />} />
           <Route path="overview"          element={<Overview />} />
-          <Route path="leads"             element={<Leads />} />
-          <Route path="properties"        element={<Properties />} />
+          <Route path="claims"            element={<Claims />} />
+          <Route path="members"           element={<Members />} />
           <Route path="conversations"     element={<Conversations />} />
           <Route path="escalations"       element={<Escalations />} />
-          <Route path="viewings"          element={<Viewings />} />
           <Route path="broadcasts"        element={<Broadcasts />} />
           <Route path="settings"          element={<Settings />} />
         </Route>
