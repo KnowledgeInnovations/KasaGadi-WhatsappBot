@@ -28,9 +28,6 @@ router.post("/webhook", async (req, res) => {
   // Immediately acknowledge to avoid Meta retries
   res.sendStatus(200);
 
-  // TEMP DEBUG — remove after diagnosing the "From: undefined" issue
-  console.log("[DEBUG] Raw webhook body:", JSON.stringify(req.body));
-
   try {
     const entry = req.body?.entry;
     if (!entry) return;
