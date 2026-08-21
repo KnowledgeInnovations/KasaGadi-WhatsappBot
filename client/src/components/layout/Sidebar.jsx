@@ -4,6 +4,7 @@ import {
   Siren, Megaphone, Settings, LogOut, ChevronRight, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import logo from "@/assets/kasagadi-logo.jpeg";
 
 const nav = [
   { to: "/app/overview",      icon: LayoutDashboard, label: "Overview"      },
@@ -35,9 +36,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
     )}>
       {/* Logo */}
       <div className={cn("flex items-center h-16 border-b border-white/10 px-5 gap-3 shrink-0", collapsed && "lg:justify-center lg:px-3")}>
-        <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0">
-          K
-        </div>
+        <img src={logo} alt="Kasagadi" className="w-8 h-8 rounded-lg object-contain shrink-0" />
         <span className={cn("text-white font-bold text-sm tracking-wide truncate flex-1", collapsed && "lg:hidden")}>
           Kasagadi AI
         </span>

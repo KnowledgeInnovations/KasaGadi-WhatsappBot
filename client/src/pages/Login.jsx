@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
-import { Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
+import logo from "@/assets/kasagadi-logo.jpeg";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export default function Login() {
 
         {/* Logo */}
         <div className="relative flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">K</div>
+          <img src={logo} alt="Kasagadi" className="w-9 h-9 rounded-lg object-contain" />
           <span className="text-white font-bold text-lg tracking-wide">Kasagadi AI</span>
         </div>
 
@@ -81,9 +82,7 @@ export default function Login() {
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
           <div className="lg:hidden mb-8 flex items-center justify-center gap-2.5">
-            <div className="w-9 h-9 bg-brand-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-              <ShieldCheck size={18} />
-            </div>
+            <img src={logo} alt="Kasagadi" className="w-9 h-9 rounded-lg object-contain" />
             <span className="text-slate-900 font-bold text-lg">Kasagadi AI</span>
           </div>
 
