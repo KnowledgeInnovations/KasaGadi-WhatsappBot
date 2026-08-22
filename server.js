@@ -83,8 +83,18 @@ app.get("/", (req, res) => {
 
 // ---------- Error handler ----------
 app.use((err, req, res, next) => {
-  console.error("[Server Error]", err.message);
-  res.status(500).json({ error: "Internal server error" });
+  // express.json() sets err.status = 400 for malformed request bodies (e.g. a
+  // probe or a buggy client sending invalid JSON) — that's a client error, not
+  // a server failure. Treating it as 500 previously misclassified routine bad
+  // requests as outages, which could trip alerting and make Meta's webhook
+  // delivery treat us as unhealthy rather than just rejecting one bad request.
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) {
+    console.error("[Server Error]", err.message);
+  } else {
+    console.warn("[Client Error]", status, err.message);
+  }
+  res.status(status).json({ error: status >= 500 ? "Internal server error" : err.message || "Bad request" });
 });
 
 // ---------- Start ----------
