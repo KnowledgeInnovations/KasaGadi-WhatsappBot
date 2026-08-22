@@ -225,7 +225,14 @@ export async function handleIncomingMessage(messagePayload) {
   // this message so an empty history isn't masked by the push below.
   const isBrandNewSession = session.history.length === 0;
   const isTtlReset = session.metadata?.returningUser !== undefined;
-  const isJustGreeting = /^(hi|hello|hey|sannu|hola|good\s*(?:morning|afternoon|evening)|yo|sup)[\s!.]*$/i.test(userText.trim());
+  // "+" on each word's trailing letter covers casual texting variants
+  // ("heyyy", "hiii", "helloo") — without it, those fall through to the AI
+  // pipeline instead of the deterministic greeting handling below/above,
+  // which is both slower and inconsistent (observed in production: "heyyy"
+  // got an AI-generated reply while "hi" sent moments later got the
+  // deterministic one, and out-of-order AI latency made the replies arrive
+  // in a confusing order).
+  const isJustGreeting = /^(hi+|hello+|hey+|sannu+|hola+|good\s*(?:morning|afternoon|evening)|yo+|sup+)[\s!.]*$/i.test(userText.trim());
 
   await addMessage(from, "user", userText);
 
