@@ -158,7 +158,7 @@ export async function markAsRead(messageId) {
  * codebase are always normalized to bare digit strings, so any non-digit
  * character reliably means "not a phone number".
  */
-function isBsuid(id) {
+export function isBsuid(id) {
   return !/^\d+$/.test(String(id || ""));
 }
 

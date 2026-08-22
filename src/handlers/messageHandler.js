@@ -12,6 +12,7 @@ import {
   sendTextMessage,
   sendButtonMessage,
   markAsRead,
+  isBsuid,
 } from "../services/whatsapp.js";
 import config from "../config/index.js";
 
@@ -441,13 +442,22 @@ async function handleEscalation(to, reason) {
     const name = session.profile?.name || "Guest";
     const reviewNumber = config.company.escalationWhatsApp.replace("+", "");
 
+    // A BSUID (someone who hid their phone number via WhatsApp usernames)
+    // has no wa.me link a reviewer can click — that deep link only resolves
+    // phone numbers. Say so plainly instead of handing them a dead link, and
+    // don't mislabel the BSUID as a "Phone".
+    const contactLine = isBsuid(to) ? `🆔 *Contact ID:* ${to}` : `📱 *Phone:* +${to}`;
+    const replyLine = isBsuid(to)
+      ? `This user has hidden their number — reply here in the bot conversation, wa.me won't work for them.`
+      : `Reply to the user directly: wa.me/${to}`;
+
     const clientInfo =
       `🔔 *New Escalation — Kasagadi AI*\n\n` +
       `👤 *Name:* ${name}\n` +
-      `📱 *Phone:* +${to}\n` +
+      `${contactLine}\n` +
       `📋 *Registered:* ${session.profile?.registered ? "Yes" : "No (guest)"}\n\n` +
       `📝 *Reason:* ${reason}\n\n` +
-      `Reply to the user directly: wa.me/${to}`;
+      `${replyLine}`;
 
     const textResult = await sendTextMessage(reviewNumber, clientInfo);
     console.log(`[Escalation] ✅ Review team notified:`, textResult?.messages?.[0]?.id || "ID not returned");
