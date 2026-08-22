@@ -335,7 +335,13 @@ export async function handleIncomingMessage(messagePayload) {
   // of a brief redirect. Catching these deterministically is more reliable than
   // hoping the model follows the system-prompt instruction every time.
   const OFF_TOPIC_PATTERNS = [
-    /\b(?:i\s+(?:love|like)\s+you|i\s+want\s+to\s+marry\s+you|will\s+you\s+marry\s+me|marry\s+me|be\s+my\s+(?:girlfriend|boyfriend|lover|wife|husband)|i\s+want\s+(?:to\s+be\s+with\s+)?you|you\s+are\s+(?:so\s+)?beautiful|my\s+love|i\s+said\s+i\s+want\s+to\s+marry)\b/i,
+    // "(?:you|u)" covers the common "u" abbreviation ("i love u", "i want to
+    // marry u") the original pattern missed. The negative lookahead on the
+    // "i want [to be with] you/u" alternative excludes "i want you to <verb>"
+    // -- a completely normal request phrasing ("i want you to check this
+    // claim") that the original pattern was wrongly catching as a romantic
+    // advance, since it never required "you" to end the message.
+    /\b(?:i\s+(?:love|like)\s+(?:you|u)|i\s+want\s+to\s+marry\s+(?:you|u)|will\s+(?:you|u)\s+marry\s+me|marry\s+me|be\s+my\s+(?:girlfriend|boyfriend|lover|wife|husband)|i\s+want\s+(?:to\s+be\s+with\s+)?(?:you|u)(?!\s+to\s+\w)|(?:you|u)\s+are\s+(?:so\s+)?beautiful|my\s+love|i\s+said\s+i\s+want\s+to\s+marry)\b/i,
     /\b(?:send\s+(?:me\s+)?money|give\s+(?:me\s+)?money|i\s+need\s+money|lend\s+me|momo\s+me|mobile\s+money\s+me)\b/i,
     /\b(?:looking\s+for\s+(?:a\s+)?(?:job|work)|hire\s+me|employ\s+me|i\s+need\s+(?:a\s+)?job)\b/i,
   ];
