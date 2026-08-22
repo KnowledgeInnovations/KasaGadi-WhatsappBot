@@ -232,23 +232,37 @@ export async function handleIncomingMessage(messagePayload) {
     const knownName = session.profile?.name;
     const isJustGreeting = /^(hi|hello|hey|sannu|hola|good\s*(?:morning|afternoon|evening)|yo|sup)[\s!.]*$/i.test(userText.trim());
 
+    // Send greeting/welcome-back best-effort: a WhatsApp send failure here
+    // (rate limit, transient API error, invalid recipient) must not abort the
+    // rest of the handler — otherwise a non-bare-greeting first message (a
+    // real question) would silently get NO reply at all, since the exception
+    // would skip the AI pipeline below entirely. State is always persisted
+    // first regardless of whether the send succeeds.
     if (isBrandNewSession) {
-      await sendTextMessage(
-        from,
-        knownName
-          ? `Hello ${knownName}! Welcome to Kasagadi AI on WhatsApp. How can I help you today? You can ask me questions in English, Twi, or Hausa.`
-          : `Hello! Welcome to Kasagadi AI on WhatsApp, powered by the Mansa model. I can help provide context, background info, and past verified claims in English, Twi, or Hausa. What would you like to check today?`
-      );
       await updateState(from, "ACTIVE");
+      try {
+        await sendTextMessage(
+          from,
+          knownName
+            ? `Hello ${knownName}! Welcome to Kasagadi AI on WhatsApp. How can I help you today? You can ask me questions in English, Twi, or Hausa.`
+            : `Hello! Welcome to Kasagadi AI on WhatsApp, powered by the Mansa model. I can help provide context, background info, and past verified claims in English, Twi, or Hausa. What would you like to check today?`
+        );
+      } catch (err) {
+        console.error(`[Greeting] Failed to send welcome message to ${from}:`, err.message);
+      }
     } else {
       delete session.metadata.returningUser;
       await updateProfile(from, {}); // persist metadata deletion
-      await sendTextMessage(
-        from,
-        knownName
-          ? `Welcome back, *${knownName}*! 😊 What would you like to check today?`
-          : `Welcome back! 👋 What would you like to check today?`
-      );
+      try {
+        await sendTextMessage(
+          from,
+          knownName
+            ? `Welcome back, *${knownName}*! 😊 What would you like to check today?`
+            : `Welcome back! 👋 What would you like to check today?`
+        );
+      } catch (err) {
+        console.error(`[Greeting] Failed to send welcome-back message to ${from}:`, err.message);
+      }
     }
 
     // A bare greeting has nothing to fact-check — stop and wait for the real question.
