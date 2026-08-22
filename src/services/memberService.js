@@ -58,6 +58,17 @@ export async function registerMember({ phone, name, email = "", source = "whatsa
     console.log(`[Member] Registered new member ${member.memberId} (${name}, ${phone})`);
     return member.toObject();
   } catch (err) {
+    // Race: two requests for the same phone (duplicate webhook delivery, a
+    // retry) can both pass the findOne check above before either saves —
+    // the second hits the unique index on `phone` and lands here. Rather
+    // than fail (which previously surfaced a misleading "database offline"
+    // message to the user even though a member record now exists), treat
+    // it as success: fetch whichever record won the race and use that.
+    if (err.code === 11000) {
+      console.warn(`[Member] Registration race on ${phone} — another request won, fetching its record`);
+      const winner = await MemberModel.findOne({ phone }).lean();
+      if (winner) return winner;
+    }
     console.error("[Member] register failed:", err.message);
     return null;
   }
