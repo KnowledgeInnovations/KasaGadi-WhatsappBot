@@ -330,7 +330,15 @@ export async function handleIncomingMessage(messagePayload) {
   console.log(`[Chat] ${from} → ${userText}`);
   console.log(`[Chat] Bot → ${aiResult.text.slice(0, 150)}...`);
 
-  await sendTextMessage(from, aiResult.text);
+  // Best-effort send: if this throws, the escalation below (potentially a
+  // user explicitly asking for a human, or reporting something urgent/
+  // harmful) must still go through — a failed WhatsApp delivery on the AI's
+  // own reply is not a reason to also drop a safety-relevant handoff.
+  try {
+    await sendTextMessage(from, aiResult.text);
+  } catch (err) {
+    console.error(`[Chat] Failed to send AI reply to ${from}:`, err.message);
+  }
 
   // --- Guest registration nudge — once per session, after a substantive answer ---
   if (!session.profile?.registered && !session.metadata?.registrationPromptShown) {
@@ -339,10 +347,14 @@ export async function handleIncomingMessage(messagePayload) {
       session.metadata = session.metadata || {};
       session.metadata.registrationPromptShown = true;
       await updateProfile(from, {}); // persist metadata
-      await sendTextMessage(
-        from,
-        `\nWant to submit claims for investigation or track updates? Create an account at ${config.company.website}, or type *register* to link this WhatsApp number now.`
-      );
+      try {
+        await sendTextMessage(
+          from,
+          `\nWant to submit claims for investigation or track updates? Create an account at ${config.company.website}, or type *register* to link this WhatsApp number now.`
+        );
+      } catch (err) {
+        console.error(`[Chat] Failed to send registration nudge to ${from}:`, err.message);
+      }
     }
   }
 
@@ -383,10 +395,18 @@ async function handleEscalation(to, reason) {
   };
   await updateProfile(to, {});
 
-  await sendTextMessage(
-    to,
-    `👤 *Connecting you with our fact-checking team*\n\nI'm passing this on to a human reviewer who can help further.\n\n📞 You can also reach us directly:\n• WhatsApp: ${config.company.escalationWhatsApp}\n• Email: ${config.company.email}\n\n🕒 ${config.company.businessHours}\n\nSomeone will respond shortly. Thank you for your patience! 🙏`
-  );
+  // Best-effort: if this confirmation fails to send, the reviewer notification
+  // below (the actually critical part of an escalation) must still fire —
+  // previously a failure here would throw out of the whole function and the
+  // human review team would never learn about the escalation at all.
+  try {
+    await sendTextMessage(
+      to,
+      `👤 *Connecting you with our fact-checking team*\n\nI'm passing this on to a human reviewer who can help further.\n\n📞 You can also reach us directly:\n• WhatsApp: ${config.company.escalationWhatsApp}\n• Email: ${config.company.email}\n\n🕒 ${config.company.businessHours}\n\nSomeone will respond shortly. Thank you for your patience! 🙏`
+    );
+  } catch (err) {
+    console.error(`[Escalation] Failed to send confirmation to ${to}:`, err.message);
+  }
 
   try {
     const name = session.profile?.name || "Guest";
