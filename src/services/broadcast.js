@@ -1,4 +1,4 @@
-import { sendTextMessage, sendTemplateMessage } from "./whatsapp.js";
+import { sendTextMessage, sendTemplateMessage, isBsuid } from "./whatsapp.js";
 import Broadcast from "../db/models/Broadcast.js";
 import { v4 as uuidv4 } from "uuid";
 
@@ -49,7 +49,10 @@ export async function broadcastMessage(recipients, message, options = {}) {
     logs: [],
   };
 
-  // Validate phone numbers
+  // Validate recipients — a real phone number here always has a leading "+";
+  // a BSUID (someone who registered via a WhatsApp-username conversation,
+  // see isBsuid() in whatsapp.js) never does and isn't a country-code issue,
+  // so it's accepted as its own valid recipient shape rather than rejected.
   const validRecipients = normalized.filter((r) => {
     const num = r.phone;
     if (!num || typeof num !== "string") {
@@ -57,6 +60,7 @@ export async function broadcastMessage(recipients, message, options = {}) {
       results.failed++;
       return false;
     }
+    if (isBsuid(num)) return true;
     // Check if it starts with +
     if (!num.startsWith("+")) {
       results.failedNumbers.push({ number: num, reason: "Missing country code (+)" });

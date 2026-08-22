@@ -154,12 +154,15 @@ export async function markAsRead(messageId) {
  * True for a business-scoped user ID (BSUID) — Meta's opaque identifier for
  * a sender who has hidden their phone number behind a WhatsApp username
  * (e.g. "GH.4287898731522060"), received as `from_user_id` in the webhook
- * (see normalizePayload() in messageHandler.js). Real phone numbers in this
- * codebase are always normalized to bare digit strings, so any non-digit
- * character reliably means "not a phone number".
+ * (see normalizePayload() in messageHandler.js). Real phone numbers appear
+ * in two conventions across this codebase — bare digits (messageHandler.js,
+ * from Meta's webhook `from` field) and "+"-prefixed (broadcast.js's own
+ * established convention, already verified as valid in an earlier QA pass)
+ * — so both must be excluded, not just bare digits, or a "+"-prefixed
+ * broadcast recipient gets misclassified as a BSUID.
  */
 export function isBsuid(id) {
-  return !/^\d+$/.test(String(id || ""));
+  return !/^\+?\d+$/.test(String(id || ""));
 }
 
 /**

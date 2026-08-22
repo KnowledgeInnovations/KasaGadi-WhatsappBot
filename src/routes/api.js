@@ -16,7 +16,7 @@ import {
   deleteMember,
   buildPersonalizedLink,
 } from "../services/memberService.js";
-import { sendTextMessage } from "../services/whatsapp.js";
+import { sendTextMessage, isBsuid } from "../services/whatsapp.js";
 import {
   broadcastMessage,
   parsePhoneNumbers,
@@ -330,6 +330,13 @@ router.post("/broadcast/send-members", async (req, res) => {
 });
 
 function normalizePhone(raw) {
+  // A member registered from a BSUID conversation (see isBsuid() in
+  // whatsapp.js) has no real phone number stored at all -- stripping
+  // non-digits from it would silently mangle it into a fabricated,
+  // unreachable "phone number" instead of the actual recipient identifier
+  // broadcastMessage() needs to correctly route the send. Pass it through
+  // unchanged so a members broadcast can still reach them.
+  if (raw && isBsuid(raw)) return raw;
   const digits = String(raw || "").replace(/\D/g, "");
   if (digits.length < 8) return null;
   return `+${digits}`;
