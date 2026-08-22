@@ -108,7 +108,7 @@ export async function broadcastMessage(recipients, message, options = {}) {
     await Promise.all(promises);
 
     // Wait before next batch
-    if (i + batchSize < validNumbers.length) {
+    if (i + batchSize < validRecipients.length) {
       console.log(`[Broadcast] Waiting ${delayMs}ms before next batch...`);
       await sleep(delayMs);
     }
