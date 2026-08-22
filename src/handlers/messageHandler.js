@@ -273,6 +273,31 @@ export async function handleIncomingMessage(messagePayload) {
     return;
   }
 
+  // --- Off-topic guard — romantic advances, job/money requests, etc. ---
+  // Without this, a message like "I want to marry you" goes straight to the AI,
+  // which (observed in testing) doesn't reliably deflect it gracefully — it can
+  // latch onto leftover context and repeat an unrelated previous answer instead
+  // of a brief redirect. Catching these deterministically is more reliable than
+  // hoping the model follows the system-prompt instruction every time.
+  const OFF_TOPIC_PATTERNS = [
+    /\b(?:i\s+(?:love|like)\s+you|i\s+want\s+to\s+marry\s+you|will\s+you\s+marry\s+me|marry\s+me|be\s+my\s+(?:girlfriend|boyfriend|lover|wife|husband)|i\s+want\s+(?:to\s+be\s+with\s+)?you|you\s+are\s+(?:so\s+)?beautiful|my\s+love|i\s+said\s+i\s+want\s+to\s+marry)\b/i,
+    /\b(?:send\s+(?:me\s+)?money|give\s+(?:me\s+)?money|i\s+need\s+money|lend\s+me|momo\s+me|mobile\s+money\s+me)\b/i,
+    /\b(?:looking\s+for\s+(?:a\s+)?(?:job|work)|hire\s+me|employ\s+me|i\s+need\s+(?:a\s+)?job)\b/i,
+  ];
+  if (OFF_TOPIC_PATTERNS.some((p) => p.test(userText))) {
+    session.metadata = session.metadata || {};
+    session.metadata.offTopicCount = (session.metadata.offTopicCount || 0) + 1;
+    await updateProfile(from, {}); // persist counter
+    if (session.metadata.offTopicCount <= 2) {
+      await sendTextMessage(
+        from,
+        `Ha, I appreciate it, but I'm just Kasagadi's fact-checking assistant 😅 — I can't help with that.\n\nIf you've seen a claim, story, or rumour you'd like me to check, send it my way!`
+      );
+    }
+    // 3rd+ strike: stay silent rather than keep engaging.
+    return;
+  }
+
   // --- Claim search + AI pipeline ---
   const matchedClaims = await searchClaims(userText, { limit: 3 });
   const member = session.profile?.registered ? { name: session.profile.name } : null;

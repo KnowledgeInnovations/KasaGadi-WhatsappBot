@@ -64,7 +64,8 @@ HOW TO RESPOND:
 7. Keep replies concise and scannable on WhatsApp: short paragraphs, *bold* for verdicts/key terms, occasional relevant emoji (not excessive).
 8. If the user's message isn't about a claim/fact-check/local context at all (e.g. small talk, "how are you"), respond warmly and briefly, then gently steer back: ask what story or topic they'd like help understanding.
 9. If the user explicitly asks to speak to a human, a real person, a fact-checker, or reports something urgent/harmful (e.g. targeted harassment, a claim causing real-world danger), emit [ESCALATE] immediately.
-10. FORMAT: Under 200 words per reply. WhatsApp markdown only: *bold*, _italic_. No markdown tables or headers.
+10. CRITICAL: if the user asks a real, specific question (names a person, event, policy, statistic, rumour, etc.), you MUST attempt an actual answer using the candidate claims, your own knowledge, and web search — never deflect a specific question with a generic "here's what I can help with" capabilities menu. A menu-style non-answer is only appropriate for a message with genuinely no content to act on (e.g. a bare "hi").
+11. FORMAT: Under 200 words per reply. WhatsApp markdown only: *bold*, _italic_. No markdown tables or headers.
 
 TAGS: [ESCALATE]short reason[/ESCALATE] is the ONLY tag that exists, and only when the user explicitly wants a human or the situation needs urgent human review — append it at the very end, on its own line. Do NOT invent any other bracketed tags, labels, or metadata lines (e.g. no [CLAIM:...], [STATUS:...], [TOPIC:...] or similar) — your entire response other than [ESCALATE] must be plain conversational WhatsApp text a real person reads.`;
 }
@@ -76,47 +77,35 @@ TAGS: [ESCALATE]short reason[/ESCALATE] is the ONLY tag that exists, and only wh
  * @param {Array} matchedClaims - claims matched from our DB for the current message
  */
 export async function generateResponse(conversationHistory, member = null, matchedClaims = []) {
-  const t0 = Date.now();
   const history = conversationHistory.slice(0, -1).slice(-mansa.historyTurns);
   const lastMsg = conversationHistory[conversationHistory.length - 1];
   const message = lastMsg?.content || "";
+  const system = buildSystemPrompt(member, matchedClaims);
+  const historyPayload = history.map((m) => ({ role: m.role, content: m.content }));
 
   try {
-    const response = await axios.post(
-      `${mansa.baseUrl}/v1/chat`,
-      {
-        message,
-        system: buildSystemPrompt(member, matchedClaims),
-        history: history.map((m) => ({ role: m.role, content: m.content })),
-        temperature: mansa.temperature,
-        max_tokens: mansa.maxTokens,
-        response_language: mansa.responseLanguage,
-        web_search: mansa.webSearch,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...(mansa.apiKey ? { Authorization: `Bearer ${mansa.apiKey}` } : {}),
-        },
-        timeout: 30000,
-      }
-    );
-    const t1 = Date.now();
-    console.log(`[Perf] Mansa: ${t1 - t0}ms`);
-
-    const raw = response.data?.reply || "I'm sorry, I couldn't process that. Please try again.";
-    const sources = response.data?.sources || [];
-    return { ...parseAIResponse(raw), sources };
+    return await callMansa(message, system, historyPayload, mansa.responseLanguage);
   } catch (err) {
     const code = err.response?.data?.code;
     console.error("Mansa API error:", code || err.message);
 
+    // Mansa's language auto-detection occasionally misfires on short/casual
+    // English (e.g. "u" for "you") and tries to translate when it shouldn't,
+    // failing outright. Retry once forcing English rather than dead-ending —
+    // this only matters when it was actually English to begin with; if the
+    // user genuinely wrote in Twi/Hausa this just means the retry answers in
+    // English instead of failing a second time.
     if (code === "translation_failed") {
-      return {
-        text: "Sorry, I had trouble translating that. Could you try again, or ask in English? 🙏",
-        escalate: null,
-        sources: [],
-      };
+      try {
+        return await callMansa(message, system, historyPayload, "english");
+      } catch (retryErr) {
+        console.error("Mansa API retry (forced English) also failed:", retryErr.response?.data?.code || retryErr.message);
+        return {
+          text: "Sorry, I had trouble understanding that. Could you try rephrasing? 🙏",
+          escalate: null,
+          sources: [],
+        };
+      }
     }
 
     return {
@@ -125,6 +114,34 @@ export async function generateResponse(conversationHistory, member = null, match
       sources: [],
     };
   }
+}
+
+async function callMansa(message, system, historyPayload, responseLanguage) {
+  const t0 = Date.now();
+  const response = await axios.post(
+    `${mansa.baseUrl}/v1/chat`,
+    {
+      message,
+      system,
+      history: historyPayload,
+      temperature: mansa.temperature,
+      max_tokens: mansa.maxTokens,
+      response_language: responseLanguage,
+      web_search: mansa.webSearch,
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        ...(mansa.apiKey ? { Authorization: `Bearer ${mansa.apiKey}` } : {}),
+      },
+      timeout: 30000,
+    }
+  );
+  console.log(`[Perf] Mansa (${responseLanguage}): ${Date.now() - t0}ms`);
+
+  const raw = response.data?.reply || "I'm sorry, I couldn't process that. Please try again.";
+  const sources = response.data?.sources || [];
+  return { ...parseAIResponse(raw), sources };
 }
 
 /**
