@@ -74,6 +74,12 @@ function isDuplicate(messageId) {
 export async function handleIncomingMessage(messagePayload) {
   const { from, messageId, type, text, interactive, media } = normalizePayload(messagePayload);
 
+  // DIAGNOSTIC — tracking a reported cross-session bleed (different phones
+  // seeing replies to conversations they never had). Logs the raw identity
+  // Meta sent so we can confirm whether two real senders ever resolve to the
+  // same `from`. Remove once confirmed/fixed.
+  console.log(`[Identity] resolvedFrom=${from} raw.from=${messagePayload.from} raw.from_user_id=${messagePayload.from_user_id} messageId=${messageId}`);
+
   if (!from || !messageId) return;
 
   if (isDuplicate(messageId)) {
@@ -131,6 +137,9 @@ export async function handleIncomingMessage(messagePayload) {
   }
 
   const session = await getSession(from);
+  // DIAGNOSTIC — see comment above. Shows what session/history got loaded for
+  // this `from`, so we can tell if it's inheriting a different conversation.
+  console.log(`[Identity] session for ${from} → profile.name=${session.profile?.name} historyLen=${session.history?.length} state=${session.state}`);
   let userText = extractUserText(type, text, interactive, media);
   if (!userText) return; // unsupported message type
 
