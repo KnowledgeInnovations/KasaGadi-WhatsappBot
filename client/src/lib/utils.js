@@ -41,6 +41,11 @@ export function fmtCurrency(amount, currency = "USD") {
 export function fmtPhone(phone) {
   if (!phone) return "—";
   const s = String(phone);
+  // A business-scoped user ID (BSUID, e.g. "GH.4287898731522060") identifies
+  // someone who's hidden their phone number behind a WhatsApp username --
+  // it's not a phone number at all, so prefixing it with "+" mislabels it.
+  // See isBsuid() in the backend's src/services/whatsapp.js for the same check.
+  if (!/^\d+$/.test(s)) return `🆔 ${s}`;
   if (s.startsWith("233")) return `+233 ${s.slice(3, 5)} ${s.slice(5, 8)} ${s.slice(8)}`;
   return `+${s}`;
 }
