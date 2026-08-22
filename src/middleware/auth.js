@@ -48,11 +48,17 @@ function verifyToken(token) {
  * Body: { username, password }
  */
 export function loginHandler(req, res) {
-  const { username, password } = req.body || {};
+  let { username, password } = req.body || {};
 
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password are required" });
   }
+
+  // Trim stray whitespace a browser/password-manager autofill can add (e.g.
+  // a trailing newline) — passwords never legitimately need leading/trailing
+  // whitespace, so this only helps, never weakens the check.
+  username = String(username).trim();
+  password = String(password).trim();
 
   // Constant-time comparison to prevent timing attacks
   const usernameMatch =

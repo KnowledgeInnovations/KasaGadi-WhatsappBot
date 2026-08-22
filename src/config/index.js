@@ -52,9 +52,17 @@ const config = {
   },
 
   // Admin dashboard authentication
+  //
+  // .trim() guards against a very common failure mode: a hosting provider's
+  // env-var UI (or a copy-paste into it) silently adding a trailing newline
+  // or space to a pasted secret. Because the login check compares buffer
+  // *lengths* before running crypto.timingSafeEqual (required — unequal
+  // lengths throw), a single stray whitespace character on the stored value
+  // makes every correctly-typed password fail with no way to tell why from
+  // the "Invalid credentials" response alone.
   admin: {
-    username: process.env.ADMIN_USERNAME || "admin",
-    password: process.env.ADMIN_PASSWORD || "kasagadi2026",
+    username: (process.env.ADMIN_USERNAME || "admin").trim(),
+    password: (process.env.ADMIN_PASSWORD || "kasagadi2026").trim(),
     jwtSecret: process.env.JWT_SECRET || "kasagadi-bot-secret-" + (process.env.WHATSAPP_TOKEN || "").slice(-8),
     tokenExpiry: 24 * 60 * 60 * 1000, // 24 hours
   },
