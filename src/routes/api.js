@@ -113,7 +113,7 @@ router.post("/members", async (req, res) => {
   try {
     const { name, phone, email } = req.body || {};
     if (!name || !phone) return res.status(400).json({ error: "name and phone are required" });
-    const digits = String(phone).replace(/\D/g, "");
+    const digits = normalizeGhanaDigits(String(phone).replace(/\D/g, ""));
     if (digits.length < 8) return res.status(400).json({ error: "Invalid phone number" });
     const member = await registerMember({ phone: digits, name, email, source: "dashboard" });
     if (!member) return res.status(503).json({ error: "Database not connected" });
@@ -122,6 +122,22 @@ router.post("/members", async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+/**
+ * Normalize a local Ghanaian number (e.g. "0241234567", 10 digits starting
+ * with 0) to the international digits WhatsApp actually sends as `from`
+ * (e.g. "233241234567"). Without this, a member added via the dashboard
+ * using the natural local format would never match findMemberByPhone()
+ * when that person actually messages the bot — same normalization already
+ * used for broadcast CSV uploads (see broadcast.js), just missing here.
+ * Leaves already-international numbers untouched.
+ */
+function normalizeGhanaDigits(digits) {
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return "233" + digits.slice(1);
+  }
+  return digits;
+}
 
 /**
  * GET /api/members/:id/whatsapp-link — the deep link kasagadi.ai's "Chat on WhatsApp"
