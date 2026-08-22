@@ -16,7 +16,9 @@ export async function sendTextMessage(to, text) {
 export async function sendTemplateMessage(to, templateName = "hello_world", languageCode = "en_US", components = []) {
   const payload = {
     messaging_product: "whatsapp",
-    to,
+    // See isBsuid()/sendMessage() below — a BSUID recipient must use
+    // "recipient", not "to", or Meta rejects the send.
+    ...(isBsuid(to) ? { recipient: to } : { to }),
     type: "template",
     template: {
       name: templateName,
@@ -149,10 +151,31 @@ export async function markAsRead(messageId) {
 }
 
 /**
- * Core message sender with retry logic
+ * True for a business-scoped user ID (BSUID) — Meta's opaque identifier for
+ * a sender who has hidden their phone number behind a WhatsApp username
+ * (e.g. "GH.4287898731522060"), received as `from_user_id` in the webhook
+ * (see normalizePayload() in messageHandler.js). Real phone numbers in this
+ * codebase are always normalized to bare digit strings, so any non-digit
+ * character reliably means "not a phone number".
+ */
+function isBsuid(id) {
+  return !/^\d+$/.test(String(id || ""));
+}
+
+/**
+ * Core message sender with retry logic.
+ *
+ * Meta's outbound "to" field requires an actual phone number — sending to a
+ * BSUID there fails silently from the user's perspective (Meta rejects the
+ * request, we log it, but the user never receives a reply). BSUID recipients
+ * must instead use the separate "recipient" field. Without this, EVERY user
+ * who has hidden their phone number via WhatsApp's username feature would
+ * never get any reply from the bot at all, no matter what they send.
  */
 async function sendMessage(to, messagePayload, retries = 2) {
-  const payload = { messaging_product: "whatsapp", to, ...messagePayload };
+  const payload = isBsuid(to)
+    ? { messaging_product: "whatsapp", recipient: to, ...messagePayload }
+    : { messaging_product: "whatsapp", to, ...messagePayload };
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
