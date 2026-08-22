@@ -225,12 +225,12 @@ export async function handleIncomingMessage(messagePayload) {
   // this message so an empty history isn't masked by the push below.
   const isBrandNewSession = session.history.length === 0;
   const isTtlReset = session.metadata?.returningUser !== undefined;
+  const isJustGreeting = /^(hi|hello|hey|sannu|hola|good\s*(?:morning|afternoon|evening)|yo|sup)[\s!.]*$/i.test(userText.trim());
 
   await addMessage(from, "user", userText);
 
   if (isBrandNewSession || isTtlReset) {
     const knownName = session.profile?.name;
-    const isJustGreeting = /^(hi|hello|hey|sannu|hola|good\s*(?:morning|afternoon|evening)|yo|sup)[\s!.]*$/i.test(userText.trim());
 
     // Send greeting/welcome-back best-effort: a WhatsApp send failure here
     // (rate limit, transient API error, invalid recipient) must not abort the
@@ -283,6 +283,28 @@ export async function handleIncomingMessage(messagePayload) {
       await sendTextMessage(reviewNumber, `💬 Follow-up from *+${from}* (${name}):\n"${userText}"`);
     } catch (err) {
       console.error("[Escalation] Failed to forward follow-up message to reviewer:", err.message);
+    }
+    return;
+  }
+
+  // --- Bare greeting mid-conversation ("hi" typed again later, not at a
+  // fresh session boundary — that case is handled above) — without this,
+  // the message falls straight to the AI with the full conversation
+  // history. Observed in production: the model can reinterpret a bare
+  // greeting as a cue to re-summarize/re-confirm the previous topic
+  // instead of just greeting back, the same unreliable-instruction-
+  // following problem the off-topic guard below exists to avoid.
+  if (isJustGreeting) {
+    const knownName = session.profile?.name;
+    try {
+      await sendTextMessage(
+        from,
+        knownName
+          ? `Hi again, ${knownName}! 👋 What would you like to check today?`
+          : `Hi again! 👋 What would you like to check today?`
+      );
+    } catch (err) {
+      console.error(`[Greeting] Failed to send mid-conversation greeting to ${from}:`, err.message);
     }
     return;
   }
