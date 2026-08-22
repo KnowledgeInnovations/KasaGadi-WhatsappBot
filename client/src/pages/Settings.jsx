@@ -52,7 +52,7 @@ export default function Settings() {
             <Server size={16} className="text-brand-600" />
             <p className="font-semibold text-slate-900 text-sm">System Status</p>
           </div>
-          <button onClick={() => qc.invalidateQueries({ queryKey: ["health", "stats"] })}
+          <button onClick={() => { qc.invalidateQueries({ queryKey: ["health"] }); qc.invalidateQueries({ queryKey: ["stats"] }); }}
             className="p-1.5 text-slate-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors" title="Refresh">
             <RefreshCw size={14} />
           </button>

@@ -37,7 +37,7 @@ function stateBadgeVariant(state) {
   if (!state) return "slate";
   if (state.includes("ESCALATED")) return "red";
   if (state === "ACTIVE") return "green";
-  if (state === "AWAITING_PRODUCT_INTENT") return "blue";
+  if (state === "AWAITING_REGISTER_NAME") return "blue";
   return "slate";
 }
 
