@@ -82,18 +82,26 @@ export async function createSession(userId) {
       memberId: null,
     },
     lastActivity: Date.now(),
-    metadata: {},
+    // sessionStartedAt marks the boundary the message handler uses to decide
+    // which history entries are "this conversation" vs. old, stale context —
+    // see the identical note in resetSession() below.
+    metadata: { sessionStartedAt: Date.now() },
   };
   cache.set(userId, session);
-  persistSession(session); // fire-and-forget
+  await persistSession(session);
   return session;
 }
 
 /**
- * Reset a session after TTL expiry — clears conversation state
- * but PRESERVES history and profile for dashboard purposes.
+ * Reset a session after TTL expiry — clears conversation state but PRESERVES
+ * the full message history in MongoDB for dashboard/audit purposes (nothing
+ * is deleted). Known users (name already captured) resume as ACTIVE — no
+ * re-onboarding.
  *
- * Known users (name already captured) resume as ACTIVE — no re-onboarding.
+ * Critically, this stamps a fresh `sessionStartedAt`. The message handler
+ * only feeds Mansa the history from this timestamp onward — otherwise a
+ * plain "hi" the next day would drag yesterday's entire conversation back
+ * into context and the bot would just keep re-answering an old question.
  */
 async function resetSession(userId, oldSession) {
   const hasName = !!oldSession?.profile?.name;
@@ -107,10 +115,11 @@ async function resetSession(userId, oldSession) {
     lastActivity: Date.now(),
     metadata: {
       returningUser: hasName,
+      sessionStartedAt: Date.now(),
     },
   };
   cache.set(userId, session);
-  persistSession(session);
+  await persistSession(session);
   return session;
 }
 
@@ -120,7 +129,7 @@ export async function addMessage(userId, role, content, mediaUrl = null) {
   if (mediaUrl) msg.mediaUrl = mediaUrl;
   session.history.push(msg);
   session.lastActivity = Date.now();
-  persistSession(session);
+  await persistSession(session);
   return session;
 }
 
@@ -128,7 +137,7 @@ export async function updateState(userId, newState) {
   const session = await getSession(userId);
   session.state = newState;
   session.lastActivity = Date.now();
-  persistSession(session);
+  await persistSession(session);
   return session;
 }
 
@@ -136,7 +145,7 @@ export async function updateProfile(userId, data) {
   const session = await getSession(userId);
   Object.assign(session.profile, data);
   session.lastActivity = Date.now();
-  persistSession(session);
+  await persistSession(session);
   return session;
 }
 
@@ -147,7 +156,7 @@ export async function updateProfile(userId, data) {
 export async function touchSession(userId) {
   const session = await getSession(userId);
   session.lastActivity = Date.now();
-  persistSession(session);
+  await persistSession(session);
   return session;
 }
 

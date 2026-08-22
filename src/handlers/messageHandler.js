@@ -216,37 +216,44 @@ export async function handleIncomingMessage(messagePayload) {
     return;
   }
 
-  // --- First-ever message: greeting per Path A (known) / Path B (guest) ---
-  if (session.history.length === 0) {
-    await addMessage(from, "user", userText);
+  // --- Fresh session boundary: brand-new conversation OR TTL-reset returning
+  // session (resetSession() stamps `returningUser` on every TTL reset — see
+  // session.js). Both cases need a greeting, and critically, a bare "hi"/"hey"
+  // must STOP here rather than fall through to the AI — otherwise the bot
+  // drags in old (now-stale) history and just re-answers yesterday's question
+  // regardless of what the user actually typed today. Capture BEFORE adding
+  // this message so an empty history isn't masked by the push below.
+  const isBrandNewSession = session.history.length === 0;
+  const isTtlReset = session.metadata?.returningUser !== undefined;
 
+  await addMessage(from, "user", userText);
+
+  if (isBrandNewSession || isTtlReset) {
     const knownName = session.profile?.name;
-    if (knownName) {
+    const isJustGreeting = /^(hi|hello|hey|sannu|hola|good\s*(?:morning|afternoon|evening)|yo|sup)[\s!.]*$/i.test(userText.trim());
+
+    if (isBrandNewSession) {
       await sendTextMessage(
         from,
-        `Hello ${knownName}! Welcome to Kasagadi AI on WhatsApp. How can I help you today? You can ask me questions in English, Twi, or Hausa.`
+        knownName
+          ? `Hello ${knownName}! Welcome to Kasagadi AI on WhatsApp. How can I help you today? You can ask me questions in English, Twi, or Hausa.`
+          : `Hello! Welcome to Kasagadi AI on WhatsApp, powered by the Mansa model. I can help provide context, background info, and past verified claims in English, Twi, or Hausa. What would you like to check today?`
       );
+      await updateState(from, "ACTIVE");
     } else {
+      delete session.metadata.returningUser;
+      await updateProfile(from, {}); // persist metadata deletion
       await sendTextMessage(
         from,
-        `Hello! Welcome to Kasagadi AI on WhatsApp, powered by the Mansa model. I can help provide context, background info, and past verified claims in English, Twi, or Hausa. What would you like to check today?`
+        knownName
+          ? `Welcome back, *${knownName}*! 😊 What would you like to check today?`
+          : `Welcome back! 👋 What would you like to check today?`
       );
     }
-    await updateState(from, "ACTIVE");
 
-    // If their first message was just a greeting with nothing to check, stop here and wait for the real question.
-    const isJustGreeting = /^(hi|hello|hey|sannu|hola|good\s*(?:morning|afternoon|evening)|yo|sup)[\s!.]*$/i.test(userText.trim());
+    // A bare greeting has nothing to fact-check — stop and wait for the real question.
     if (isJustGreeting) return;
     // Otherwise fall through and answer their actual question below.
-  } else {
-    await addMessage(from, "user", userText);
-  }
-
-  // --- Returning user after session TTL reset — welcome back naturally ---
-  if (session.metadata?.returningUser && session.profile?.name) {
-    delete session.metadata.returningUser;
-    await updateProfile(from, {}); // persist metadata deletion
-    await sendTextMessage(from, `Welcome back, *${session.profile.name}*! 😊`);
   }
 
   // --- Escalated: the human reviewer owns this conversation now, not the AI ---
@@ -271,7 +278,14 @@ export async function handleIncomingMessage(messagePayload) {
   const member = session.profile?.registered ? { name: session.profile.name } : null;
 
   const freshSession = await getSession(from);
-  const aiResult = await generateResponse(freshSession.history, member, matchedClaims);
+  // Only feed Mansa the CURRENT session's messages, not the user's entire
+  // lifetime history — history.length can span multiple days once TTL resets
+  // start piling up, and an old topic from days ago would otherwise dominate
+  // the context for an unrelated question asked today. The full history still
+  // persists in MongoDB for the dashboard regardless of this filter.
+  const sessionStart = freshSession.metadata?.sessionStartedAt || 0;
+  const contextHistory = freshSession.history.filter((m) => m.timestamp >= sessionStart);
+  const aiResult = await generateResponse(contextHistory, member, matchedClaims);
   await addMessage(from, "assistant", aiResult.text);
 
   console.log(`[Chat] ${from} → ${userText}`);
