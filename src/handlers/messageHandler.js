@@ -16,6 +16,22 @@ import {
 } from "../services/whatsapp.js";
 import config from "../config/index.js";
 
+/**
+ * First-contact welcome message. The team's chosen wording (below) is the
+ * primary/default text; a couple of alternates in the same spirit keep
+ * repeat testing and onboarding from feeling identical every single time.
+ * Weighted so `main` shows roughly half the time.
+ */
+function pickWelcomeMessage(knownName) {
+  const nameSuffix = knownName ? `, ${knownName}` : "";
+  const main = `Welcome to Kasagadi AI${nameSuffix}!\nWhat would you like to know? You can chat with me in English, Twi, or Hausa.\nGot a message or claim you're not sure about? Send it to me and I'll help you fact-check it and check if it may contain disinformation.`;
+  const alternates = [
+    `Hi${knownName ? ` ${knownName}` : " there"}! I'm Kasagadi AI 🤖 — here to help you check facts and spot misinformation. Ask me anything in English, Twi, or Hausa, or send me a claim you've seen and want verified.`,
+    `Hello${knownName ? ` ${knownName}` : ""}! 👋 I'm your Kasagadi AI fact-checking assistant. Seen something online you're not sure about? Send it my way and I'll help you check it — I speak English, Twi, and Hausa too.`,
+  ];
+  return Math.random() < 0.5 ? main : alternates[Math.floor(Math.random() * alternates.length)];
+}
+
 // --- Review-team session keep-alive ---
 // WhatsApp only allows interactive/button messages within 24h of last team message.
 // Every 22h we send the review team an activation request. When they reply, the 24h window reopens.
@@ -249,12 +265,7 @@ export async function handleIncomingMessage(messagePayload) {
     if (isBrandNewSession) {
       await updateState(from, "ACTIVE");
       try {
-        await sendTextMessage(
-          from,
-          knownName
-            ? `Hello ${knownName}! Welcome to Kasagadi AI on WhatsApp. How can I help you today? You can ask me questions in English, Twi, or Hausa.`
-            : `Hello! Welcome to Kasagadi AI on WhatsApp, powered by the Mansa model. I can help provide context, background info, and past verified claims in English, Twi, or Hausa. What would you like to check today?`
-        );
+        await sendTextMessage(from, pickWelcomeMessage(knownName));
       } catch (err) {
         console.error(`[Greeting] Failed to send welcome message to ${from}:`, err.message);
       }
