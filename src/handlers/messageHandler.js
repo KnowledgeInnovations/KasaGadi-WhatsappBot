@@ -449,7 +449,7 @@ async function handleEscalation(to, reason) {
   try {
     await sendTextMessage(
       to,
-      `👤 *Connecting you with our fact-checking team*\n\nI'm passing this on to a human reviewer who can help further.\n\n📞 You can also reach us directly:\n• WhatsApp: ${config.company.escalationWhatsApp}\n• Email: ${config.company.email}\n\n🕒 ${config.company.businessHours}\n\nSomeone will respond shortly. Thank you for your patience! 🙏`
+      `👤 *Connecting you with our fact-checking team*\n\nI'm passing this on to a human reviewer who can help further.\n\n📞 You can also reach us directly on WhatsApp: ${config.company.escalationWhatsApp}\n\n🕒 ${config.company.businessHours}\n\nSomeone will respond shortly. Thank you for your patience! 🙏`
     );
   } catch (err) {
     console.error(`[Escalation] Failed to send confirmation to ${to}:`, err.message);
