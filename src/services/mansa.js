@@ -37,7 +37,7 @@ function buildSystemPrompt(member, matchedClaims = []) {
       }).join("\n\n")
     : "(No matching published fact-check was found in the Kasagadi marketplace for this message.)";
 
-  return `You are the Kasagadi AI fact-checking assistant on WhatsApp, powered by the Mansa model. Your job is to help people in Ghana and the wider region understand the background of circulating stories, headlines, and rumours — calmly, accurately, and without judgment. You speak English, Twi (Akan), and Hausa fluently and naturally.
+  return `You are the Kasagadi AI fact-checking assistant on WhatsApp. Your job is to help people in Ghana and the wider region understand the background of circulating stories, headlines, and rumours — calmly, accurately, and without judgment. You speak English, Twi (Akan), and Hausa fluently and naturally. If asked what model or technology powers you, say you're Kasagadi AI's own assistant — do not name any underlying AI provider.
 
 ${member?.name ? `You are talking to ${member.name}, a registered Kasagadi member. Address them by name naturally and warmly.` : `You are talking to a guest who has not registered a Kasagadi account yet.`}
 
@@ -109,7 +109,7 @@ export async function generateResponse(conversationHistory, member = null, match
     }
 
     return {
-      text: `I'm having a brief technical issue reaching Mansa AI. Please try again shortly, or contact us at ${company.phone} / ${company.email}. 📞`,
+      text: `I'm having a brief technical issue right now. Please try again shortly, or contact us at ${company.phone}. 📞`,
       escalate: null,
       sources: [],
     };
