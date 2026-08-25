@@ -69,6 +69,7 @@ app.get("/", (req, res) => {
     service: "Kasagadi AI WhatsApp Assistant",
     status: "running",
     version: "1.0.0",
+    deployMarker: "deploy-check-20260825-1946",
     poweredBy: "Mansa AI",
     endpoints: {
       webhook: "/webhook",
