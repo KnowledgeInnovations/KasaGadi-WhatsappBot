@@ -397,7 +397,7 @@ export async function handleIncomingMessage(messagePayload) {
       try {
         await sendTextMessage(
           from,
-          `\nWant to submit claims for investigation or track updates? Create an account at ${config.company.website}, or type *register* to link this WhatsApp number now.`
+          `\nWant to submit claims for investigation or track updates? Type *register* to link this WhatsApp number to a Kasagadi account now.`
         );
       } catch (err) {
         console.error(`[Chat] Failed to send registration nudge to ${from}:`, err.message);
