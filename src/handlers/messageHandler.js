@@ -374,18 +374,26 @@ export async function handleIncomingMessage(messagePayload) {
 
   // Some specific claims are inherently slow on Mansa's side -- confirmed by
   // reproduction: 44-60+s even with near-zero conversation history, likely
-  // tied to how heavily web_search fires for obscure/specific claims. Most
-  // replies come back in a few seconds, so a wait past this point is
-  // unusual enough to be worth a one-time heads-up rather than leaving the
-  // user staring at silence for up to 90s.
-  const interimTimer = setTimeout(() => {
-    sendTextMessage(from, "Still checking this one — it's a bit more involved, one moment... 🔍").catch(() => {});
-  }, 15000);
+  // tied to how heavily web_search fires for obscure/specific claims, plus
+  // an extra detect/translate step for non-English requests. The Mansa
+  // client timeout is now 5 minutes (see mansa.js) so a genuinely slow
+  // answer is never dropped in favour of the "technical issue" fallback --
+  // but a silent multi-minute wait still feels broken, so check in twice:
+  // once early (most replies are back well before this) and again if it's
+  // still running well past that.
+  const interimTimers = [
+    setTimeout(() => {
+      sendTextMessage(from, "Still checking this one — it's a bit more involved, one moment... 🔍").catch(() => {});
+    }, 15000),
+    setTimeout(() => {
+      sendTextMessage(from, "Still on it — this claim is taking a bit longer to verify than usual, thanks for bearing with me 🙏").catch(() => {});
+    }, 60000),
+  ];
   let aiResult;
   try {
     aiResult = await generateResponse(contextHistory, member, matchedClaims);
   } finally {
-    clearTimeout(interimTimer);
+    interimTimers.forEach(clearTimeout);
   }
   await addMessage(from, "assistant", aiResult.text);
 

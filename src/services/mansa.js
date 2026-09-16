@@ -183,12 +183,15 @@ async function callMansa(message, system, historyPayload, responseLanguage) {
       // regardless of history length -- confirmed by reproducing one real
       // failing case with near-zero history and getting 52070ms, 44504ms,
       // and a 60022ms timeout across 3 identical calls (2/3 succeeded, one
-      // exceeded even the 60s ceiling). This looks tied to how heavily
-      // web_search fires for obscure/specific claims, not conversation
-      // size. 90s gives real slow-but-successful calls enough room to
-      // finish instead of being cut off right at the edge of what we've
-      // already observed in production.
-      timeout: 90000,
+      // exceeded even the 60s ceiling). Non-English requests (response_language:
+      // "source") likely add an extra detect/translate step on Mansa's side on
+      // top of web_search, compounding the delay for Twi/Hausa specifically.
+      // The webhook already ACKs Meta before this call even starts (see
+      // webhook.js -- handleIncomingMessage runs fire-and-forget), so nothing
+      // user-facing is blocked by waiting longer here. A genuinely completing
+      // answer is always better than a fallback message, so give it up to 5
+      // minutes rather than cutting off a slow-but-real answer.
+      timeout: 300000,
     }
   );
   console.log(`[Perf] Mansa (${responseLanguage}): ${Date.now() - t0}ms`);
