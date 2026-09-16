@@ -19,6 +19,17 @@ const { mansa, company } = config;
  * @param {object|null} member - { name } if this is a known/registered member, else null (guest)
  * @param {Array} matchedClaims - claims from our DB that matched the user's message (may be empty)
  */
+// Mansa's `system` field has a hard 8000-character cap. A "research/evidence"
+// field on a real published claim can run to many paragraphs (seen well over
+// 1000 words in practice) — with up to 3 candidate claims embedded, the full
+// prompt can exceed that limit, which Mansa now rejects outright (400) rather
+// than truncating itself. Cap each claim's longest field so 3 claims always
+// stay well under the limit, regardless of how long any one claim's writeup is.
+function truncate(text, max) {
+  const s = String(text || "");
+  return s.length > max ? `${s.slice(0, max).trim()}… (see full report link for the rest)` : s;
+}
+
 function buildSystemPrompt(member, matchedClaims = []) {
   const claimsBlock = matchedClaims.length > 0
     ? matchedClaims.map((c) => {
@@ -28,8 +39,8 @@ function buildSystemPrompt(member, matchedClaims = []) {
           `- Claim: ${c.title}\n` +
           `  Circulating via: ${c.source || "unknown"} | Topics: ${(c.topics || []).join(", ") || "—"}\n` +
           `  Verdict: ${v?.verdict || "Unverified"}\n` +
-          `  Verdict summary: ${v?.summary || "Not specified"}\n` +
-          `  Research/evidence: ${v?.research || "Not specified"}\n` +
+          `  Verdict summary: ${truncate(v?.summary, 400) || "Not specified"}\n` +
+          `  Research/evidence: ${truncate(v?.research, 900) || "Not specified"}\n` +
           `  Fact-checked by: ${checker}\n` +
           `  Published: ${c.publishedAt ? new Date(c.publishedAt).toDateString() : "Unknown"}\n` +
           `  Full report: ${c.url || company.website}`
@@ -37,7 +48,7 @@ function buildSystemPrompt(member, matchedClaims = []) {
       }).join("\n\n")
     : "(No matching published fact-check was found in the Kasagadi marketplace for this message.)";
 
-  return `You are the Kasagadi AI fact-checking assistant on WhatsApp. Your job is to help people in Ghana and the wider region understand the background of circulating stories, headlines, and rumours — calmly, accurately, and without judgment. You speak English, Twi (Akan), and Hausa fluently and naturally. If asked what model or technology powers you, say you're Kasagadi AI's own assistant — do not name any underlying AI provider.
+  const prompt = `You are the Kasagadi AI fact-checking assistant on WhatsApp. Your job is to help people in Ghana and the wider region understand the background of circulating stories, headlines, and rumours — calmly, accurately, and without judgment. You speak English, Twi (Akan), and Hausa fluently and naturally. If asked what model or technology powers you, say you're Kasagadi AI's own assistant — do not name any underlying AI provider.
 
 ${member?.name ? `You are talking to ${member.name}, a registered Kasagadi member. Address them by name naturally and warmly.` : `You are talking to a guest who has not registered a Kasagadi account yet.`}
 
@@ -70,6 +81,12 @@ HOW TO RESPOND:
 12. Never open a reply with a filler/throat-clearing preamble that delays the actual answer (e.g. "Let me check what Kasagadi has on this", "Let me look into that for you", "Give me a moment"). You are Kasagadi AI, not a separate assistant querying an external Kasagadi database — you already have (or don't have) the answer, so start the reply with it: the verdict, the context, or the answer itself, in the first sentence.
 
 TAGS: [ESCALATE]short reason[/ESCALATE] is the ONLY tag that exists, and only when the user explicitly wants a human or the situation needs urgent human review — append it at the very end, on its own line. Do NOT invent any other bracketed tags, labels, or metadata lines (e.g. no [CLAIM:...], [STATUS:...], [TOPIC:...] or similar) — your entire response other than [ESCALATE] must be plain conversational WhatsApp text a real person reads.`;
+
+  // Defensive backstop: even with the per-field caps above, guard against the
+  // prompt ever exceeding Mansa's hard 8000-character system-prompt limit for
+  // any other reason (e.g. the fixed template itself grows over time). Mansa
+  // rejects an over-limit prompt outright with a 400, not a truncation.
+  return prompt.length > 7800 ? `${prompt.slice(0, 7800)}\n[...truncated to stay under the system prompt limit]` : prompt;
 }
 
 /**
@@ -89,16 +106,7 @@ export async function generateResponse(conversationHistory, member = null, match
     return await callMansa(message, system, historyPayload, mansa.responseLanguage);
   } catch (err) {
     const code = err.response?.data?.code;
-    console.error("Mansa API error:", code || err.message);
-    // TEMP DIAGNOSTIC (remove once root-caused): surface the exact failure
-    // so it's visible via the dashboard without needing server log access.
-    if (process.env.MANSA_DEBUG === "1") {
-      return {
-        text: `[DEBUG] status=${err.response?.status} code=${code} msg=${JSON.stringify(err.response?.data) || err.message} keyLen=${mansa.apiKey ? mansa.apiKey.length : 0} keyPrefix=${mansa.apiKey ? mansa.apiKey.slice(0, 8) : "(none)"}`,
-        escalate: null,
-        sources: [],
-      };
-    }
+    console.error("Mansa API error:", code || err.message, err.response?.data?.detail || "");
 
     // Mansa's language auto-detection occasionally misfires on short/casual
     // English (e.g. "u" for "you") and tries to translate when it shouldn't,
