@@ -141,8 +141,12 @@ async function callMansa(message, system, historyPayload, responseLanguage) {
   );
   console.log(`[Perf] Mansa (${responseLanguage}): ${Date.now() - t0}ms`);
 
-  const raw = response.data?.reply || "I'm sorry, I couldn't process that. Please try again.";
-  const sources = response.data?.sources || [];
+  // Response shape as of Sep 2026: the reply text and sources moved from
+  // top-level `reply`/`sources` to a nested `data` object — `{ data: { message,
+  // sources } }` instead of `{ reply, sources }`. Kept the old top-level path
+  // as a fallback in case Mansa reverts or varies this by endpoint.
+  const raw = response.data?.data?.message || response.data?.reply || "I'm sorry, I couldn't process that. Please try again.";
+  const sources = response.data?.data?.sources || response.data?.sources || [];
   return { ...parseAIResponse(raw), sources };
 }
 
@@ -153,7 +157,13 @@ function parseAIResponse(raw) {
   let text = raw;
   let escalate = null;
 
-  const escMatch = raw.match(/\[ESCALATE\](.*?)\[\/ESCALATE\]/s);
+  // Mansa now sometimes echoes its sources a second time as a literal
+  // <sources>...</sources> block inline in the reply text, duplicating the
+  // separate structured `sources` array returned alongside it. Strip it —
+  // otherwise it leaks into the WhatsApp message as raw, unreadable markup.
+  text = text.replace(/<sources>[\s\S]*?<\/sources>/gi, "").trim();
+
+  const escMatch = text.match(/\[ESCALATE\](.*?)\[\/ESCALATE\]/s);
   if (escMatch) {
     escalate = escMatch[1].trim();
     text = text.replace(escMatch[0], "").trim();
