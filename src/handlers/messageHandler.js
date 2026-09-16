@@ -371,7 +371,22 @@ export async function handleIncomingMessage(messagePayload) {
   // persists in MongoDB for the dashboard regardless of this filter.
   const sessionStart = freshSession.metadata?.sessionStartedAt || 0;
   const contextHistory = freshSession.history.filter((m) => m.timestamp >= sessionStart);
-  const aiResult = await generateResponse(contextHistory, member, matchedClaims);
+
+  // Some specific claims are inherently slow on Mansa's side -- confirmed by
+  // reproduction: 44-60+s even with near-zero conversation history, likely
+  // tied to how heavily web_search fires for obscure/specific claims. Most
+  // replies come back in a few seconds, so a wait past this point is
+  // unusual enough to be worth a one-time heads-up rather than leaving the
+  // user staring at silence for up to 90s.
+  const interimTimer = setTimeout(() => {
+    sendTextMessage(from, "Still checking this one — it's a bit more involved, one moment... 🔍").catch(() => {});
+  }, 15000);
+  let aiResult;
+  try {
+    aiResult = await generateResponse(contextHistory, member, matchedClaims);
+  } finally {
+    clearTimeout(interimTimer);
+  }
   await addMessage(from, "assistant", aiResult.text);
 
   console.log(`[Chat] ${from} → ${userText}`);

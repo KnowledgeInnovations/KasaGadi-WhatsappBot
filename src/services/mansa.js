@@ -179,13 +179,16 @@ async function callMansa(message, system, historyPayload, responseLanguage) {
         "Content-Type": "application/json",
         ...(mansa.apiKey ? { Authorization: `Bearer ${mansa.apiKey}` } : {}),
       },
-      // Twi/Hausa requests with a longer conversation history reliably come
-      // in at 25-30s (confirmed by reproducing the exact real failing case
-      // three times: 30.1s, 26.5s, 25.8s) -- 30s left essentially no margin,
-      // so ordinary variance was enough to tip a genuinely-completing
-      // request into a timeout. 60s gives real slow-but-successful calls
-      // room to finish instead of being cut off right at the edge.
-      timeout: 60000,
+      // Some specific questions are inherently slow on Mansa's side
+      // regardless of history length -- confirmed by reproducing one real
+      // failing case with near-zero history and getting 52070ms, 44504ms,
+      // and a 60022ms timeout across 3 identical calls (2/3 succeeded, one
+      // exceeded even the 60s ceiling). This looks tied to how heavily
+      // web_search fires for obscure/specific claims, not conversation
+      // size. 90s gives real slow-but-successful calls enough room to
+      // finish instead of being cut off right at the edge of what we've
+      // already observed in production.
+      timeout: 90000,
     }
   );
   console.log(`[Perf] Mansa (${responseLanguage}): ${Date.now() - t0}ms`);
