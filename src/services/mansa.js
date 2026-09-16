@@ -90,6 +90,15 @@ export async function generateResponse(conversationHistory, member = null, match
   } catch (err) {
     const code = err.response?.data?.code;
     console.error("Mansa API error:", code || err.message);
+    // TEMP DIAGNOSTIC (remove once root-caused): surface the exact failure
+    // so it's visible via the dashboard without needing server log access.
+    if (process.env.MANSA_DEBUG === "1") {
+      return {
+        text: `[DEBUG] status=${err.response?.status} code=${code} msg=${JSON.stringify(err.response?.data) || err.message} keyLen=${mansa.apiKey ? mansa.apiKey.length : 0} keyPrefix=${mansa.apiKey ? mansa.apiKey.slice(0, 8) : "(none)"}`,
+        escalate: null,
+        sources: [],
+      };
+    }
 
     // Mansa's language auto-detection occasionally misfires on short/casual
     // English (e.g. "u" for "you") and tries to translate when it shouldn't,
