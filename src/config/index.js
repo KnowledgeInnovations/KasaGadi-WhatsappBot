@@ -25,6 +25,13 @@ const config = {
     webSearch: "auto",      // let Mansa decide when to ground answers in live search
     responseLanguage: "source", // reply in the language the user wrote in (English/Twi/Hausa)
     historyTurns: 16,       // stay under Mansa's 20-turn history limit
+    // Real long-running conversations (40+ messages) can hit this turn cap
+    // while still sending several thousand characters of history, which
+    // reliably pushes response time to 25-50+ seconds (confirmed by direct
+    // reproduction) — especially for Twi/Hausa. The character budget below
+    // is the actual binding constraint for those conversations; the turn
+    // count above is just an outer bound.
+    historyMaxChars: 3500,
   },
 
   // Kasagadi Claims API — https://kasagadi.ai/api/v1 (read-only, published claims only)

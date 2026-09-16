@@ -30,6 +30,32 @@ function truncate(text, max) {
   return s.length > max ? `${s.slice(0, max).trim()}… (see full report link for the rest)` : s;
 }
 
+/**
+ * Trim conversation history for the Mansa call. A fixed turn *count* is the
+ * wrong cap — request time scales with total payload size, and turns vary
+ * wildly in length (a "hi" vs. a long assistant answer). A user with a long
+ * running conversation (confirmed in production: 40+ messages) can hit the
+ * turn-count cap while still sending several thousand characters of history,
+ * which reliably pushes Mansa's response time to 25-50+ seconds — especially
+ * for Twi/Hausa, where it runs measurably slower than English. Cap both turn
+ * count AND total character budget, keeping the most recent turns first and
+ * dropping older ones (by either measure) until the request stays a size
+ * that responds quickly and reliably regardless of how long the conversation
+ * has run.
+ */
+function trimHistory(history, maxTurns, maxChars) {
+  const recent = history.slice(-maxTurns);
+  const kept = [];
+  let total = 0;
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const len = (recent[i].content || "").length;
+    if (total + len > maxChars && kept.length > 0) break; // always keep at least the most recent turn
+    total += len;
+    kept.unshift(recent[i]);
+  }
+  return kept;
+}
+
 function buildSystemPrompt(member, matchedClaims = []) {
   const claimsBlock = matchedClaims.length > 0
     ? matchedClaims.map((c) => {
@@ -96,7 +122,7 @@ TAGS: [ESCALATE]short reason[/ESCALATE] is the ONLY tag that exists, and only wh
  * @param {Array} matchedClaims - claims matched from our DB for the current message
  */
 export async function generateResponse(conversationHistory, member = null, matchedClaims = []) {
-  const history = conversationHistory.slice(0, -1).slice(-mansa.historyTurns);
+  const history = trimHistory(conversationHistory.slice(0, -1), mansa.historyTurns, mansa.historyMaxChars);
   const lastMsg = conversationHistory[conversationHistory.length - 1];
   const message = lastMsg?.content || "";
   const system = buildSystemPrompt(member, matchedClaims);
@@ -185,6 +211,17 @@ function parseAIResponse(raw) {
   // separate structured `sources` array returned alongside it. Strip it —
   // otherwise it leaks into the WhatsApp message as raw, unreadable markup.
   text = text.replace(/<sources>[\s\S]*?<\/sources>/gi, "").trim();
+
+  // Defensive: Mansa occasionally glitches into a repeated-word loop near
+  // the end of a response (observed in production: "...atwam atwam atwam
+  // atw" — the model got stuck repeating the same token and was cut off
+  // mid-word). Detect 3+ consecutive repeats of the same word and cut the
+  // reply there — but only if that still leaves a substantive reply; if the
+  // glitch starts too early, a full garbled message beats an empty one.
+  const repMatch = text.match(/\b(\S{2,})(\s+\1){2,}/i);
+  if (repMatch && repMatch.index > 40) {
+    text = text.slice(0, repMatch.index).trim();
+  }
 
   const escMatch = text.match(/\[ESCALATE\](.*?)\[\/ESCALATE\]/s);
   if (escMatch) {
