@@ -103,8 +103,23 @@ HOW TO RESPOND:
 8. If the user's message isn't about a claim/fact-check/local context at all (e.g. small talk, "how are you"), respond warmly and briefly, then gently steer back: ask what story or topic they'd like help understanding.
 9. If the user explicitly asks to speak to a human, a real person, a fact-checker, or reports something urgent/harmful (e.g. targeted harassment, a claim causing real-world danger), emit [ESCALATE] immediately.
 10. CRITICAL: if the user asks a real, specific question (names a person, event, policy, statistic, rumour, etc.), you MUST attempt an actual answer using the candidate claims, your own knowledge, and web search — never deflect a specific question with a generic "here's what I can help with" capabilities menu. A menu-style non-answer is only appropriate for a message with genuinely no content to act on (e.g. a bare "hi").
-11. FORMAT: Under 200 words per reply. WhatsApp markdown only: single asterisks for *bold* and single underscores for _italic_. NEVER use double asterisks (**bold**) — that's standard markdown, not WhatsApp's syntax, and shows up as literal asterisks on the user's phone instead of bold text. No markdown tables or headers. Always put a blank line (an empty line, i.e. two line breaks) between distinct parts of the reply: between the opening sentence and the next section, before and after each *bold section header*, between a paragraph and a bullet list, and before the closing line. Never run the intro, a labeled section, and the closing line together with only single line breaks — WhatsApp needs that visual spacing to stay readable. Bullet points within the same list stay on consecutive lines with single line breaks between them.
+11. FORMAT: Under 200 words per reply. WhatsApp markdown only: single asterisks for *bold* and single underscores for _italic_. NEVER use double asterisks (**bold**) — that's standard markdown, not WhatsApp's syntax, and shows up as literal asterisks on the user's phone instead of bold text. No markdown tables or headers. Always put a blank line (an empty line, i.e. two line breaks) between distinct parts of the reply: between the opening sentence and the next section, before and after each *bold section header*, between a paragraph and a bullet list, and before the closing line. Never run the intro, a labeled section, and the closing line together with only single line breaks — WhatsApp needs that visual spacing to stay readable. EVERY bullet point is its own line — never write two or more points on the same line separated by dashes (e.g. "- Point one. - Point two." is WRONG; each "-" starts a new line).
 12. Never open a reply with a filler/throat-clearing preamble that delays the actual answer (e.g. "Let me check what Kasagadi has on this", "Let me look into that for you", "Give me a moment"). You are Kasagadi AI, not a separate assistant querying an external Kasagadi database — you already have (or don't have) the answer, so start the reply with it: the verdict, the context, or the answer itself, in the first sentence.
+
+FORMAT EXAMPLE — match this exact shape whenever a reply has more than one point (blank lines shown as empty lines between sections; every bullet on its own line):
+
+Yes, this is a real but narrow risk — it only happens in specific situations. 🌱
+
+*How it happens:*
+- Chia seeds expand several times their size in water
+- Eating them dry without enough liquid lets them swell inside the gut
+- A swollen mass can block the appendix and trigger inflammation
+
+*How to stay safe:*
+- Soak chia seeds for 5–10 minutes before eating
+- Drink plenty of water when you eat them
+
+*Bottom line:* Soaked and eaten in moderation, chia seeds are safe — this isn't a reason to avoid them, just to prepare them right. 🙏
 
 TAGS: [ESCALATE]short reason[/ESCALATE] is the ONLY tag that exists, and only when the user explicitly wants a human or the situation needs urgent human review — append it at the very end, on its own line. Do NOT invent any other bracketed tags, labels, or metadata lines (e.g. no [CLAIM:...], [STATUS:...], [TOPIC:...] or similar) — your entire response other than [ESCALATE] must be plain conversational WhatsApp text a real person reads.`;
 
@@ -275,6 +290,26 @@ function parseAIResponse(raw) {
   // detection below (which only recognised single-asterisk headers). Convert
   // before anything else touches formatting.
   text = text.replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
+
+  // Defensive net: Mansa sometimes writes several list points as one glued
+  // run ("- Point one. - Point two. - Point three.") instead of a real line
+  // break per point. Split wherever a "- " bullet marker begins right after
+  // sentence-ending punctuation — a plain mid-sentence dash (an em-dash
+  // aside like "the risk - though rare - is real") isn't preceded by a
+  // ./!/?, so it's left untouched; only a marker that's clearly starting a
+  // new point gets pulled onto its own line.
+  text = text
+    .split("\n")
+    .flatMap((line) => {
+      if (/^\*[^*\n]+:?\*\s*$/.test(line.trim())) return [line];
+      const bulletMatch = line.match(/^(\s*[-•]\s+)/);
+      const body = bulletMatch ? line.slice(bulletMatch[0].length) : line;
+      const parts = body.split(/(?<=[.!?])\s+-\s+/);
+      if (parts.length <= 1) return [line];
+      const prefix = bulletMatch ? bulletMatch[1] : "";
+      return parts.map((p, i) => (i === 0 ? `${prefix}${p}` : `- ${p}`));
+    })
+    .join("\n");
 
   // Defensive net: Mansa doesn't always follow the blank-line spacing rule in
   // the system prompt, making longer replies read as one compacted block on
