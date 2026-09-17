@@ -291,25 +291,24 @@ function parseAIResponse(raw) {
   // before anything else touches formatting.
   text = text.replace(/\*\*([^*\n]+)\*\*/g, "*$1*");
 
-  // Defensive net: Mansa sometimes writes several list points as one glued
-  // run ("- Point one. - Point two. - Point three.") instead of a real line
-  // break per point. Split wherever a "- " bullet marker begins right after
-  // sentence-ending punctuation — a plain mid-sentence dash (an em-dash
-  // aside like "the risk - though rare - is real") isn't preceded by a
-  // ./!/?, so it's left untouched; only a marker that's clearly starting a
-  // new point gets pulled onto its own line.
+  // Defensive net: Mansa sometimes returns a reply as essentially ONE giant
+  // line with no real line breaks at all — headers and bullet points glued
+  // together with nothing but inline "- " separators (confirmed for real:
+  // an entire multi-section WhatsApp reply arrived with zero \n characters).
+  // A line-by-line splitter can't fix that because there's only one line to
+  // begin with, so restructure the whole text instead: force every bold
+  // *Header:* to start a fresh paragraph wherever it appears, then — only
+  // when the text actually looks like a list — break each "- " marker onto
+  // its own line.
+  text = text.replace(/\s*(\*[^*\n]{1,60}:\*)/g, "\n\n$1");
+  if (isDashDelimitedList(text)) {
+    text = text.replace(/\s-\s+(?=\S)/g, "\n- ");
+  }
   text = text
     .split("\n")
-    .flatMap((line) => {
-      if (/^\*[^*\n]+:?\*\s*$/.test(line.trim())) return [line];
-      const bulletMatch = line.match(/^(\s*[-•]\s+)/);
-      const body = bulletMatch ? line.slice(bulletMatch[0].length) : line;
-      const parts = body.split(/(?<=[.!?])\s+-\s+/);
-      if (parts.length <= 1) return [line];
-      const prefix = bulletMatch ? bulletMatch[1] : "";
-      return parts.map((p, i) => (i === 0 ? `${prefix}${p}` : `- ${p}`));
-    })
-    .join("\n");
+    .map((l) => l.trim())
+    .join("\n")
+    .trim();
 
   // Defensive net: Mansa doesn't always follow the blank-line spacing rule in
   // the system prompt, making longer replies read as one compacted block on
@@ -323,6 +322,21 @@ function parseAIResponse(raw) {
   text = normalizeParagraphSpacing(text);
 
   return { text, escalate };
+}
+
+// Distinguishes a real dash-delimited list ("- Point one - Point two -
+// Point three") from a genuine em-dash aside ("the risk - though rare - is
+// real"). A real list item is a fresh, standalone clause and so almost
+// always starts with a capital letter (or a digit/emoji); an aside's
+// enclosed and trailing clauses continue the surrounding sentence in
+// lowercase. Requires 3+ segments (2+ dash separators) so a single aside
+// dash pair is never enough on its own.
+function isDashDelimitedList(text) {
+  const segments = text.split(/\s-\s+(?=\S)/);
+  if (segments.length < 3) return false;
+  const rest = segments.slice(1);
+  const startsNewPoint = (s) => /^[A-Z0-9\u{1F300}-\u{1FAFF}☀-➿⬀-⯿]/u.test(s.trim());
+  return rest.every(startsNewPoint);
 }
 
 function normalizeParagraphSpacing(text) {
