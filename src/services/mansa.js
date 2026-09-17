@@ -115,6 +115,28 @@ TAGS: [ESCALATE]short reason[/ESCALATE] is the ONLY tag that exists, and only wh
   return prompt.length > 7800 ? `${prompt.slice(0, 7800)}\n[...truncated to stay under the system prompt limit]` : prompt;
 }
 
+// Mansa's `response_language: "source"` is meant to answer in whatever
+// language the CURRENT message is written in, but in practice it can get
+// pulled toward whatever language dominates the conversation HISTORY
+// instead -- confirmed for real: a user with several prior Twi messages in
+// her session asked a plain, unambiguous English question ("Can chia seeds
+// cause appendicitis?") and got a Twi reply back, only correcting itself
+// after she explicitly said "English please". Deliberately one-directional:
+// when the current message is confidently plain English, override "source"
+// with an explicit "english" hint (already proven to work -- it's the same
+// value the translation_failed retry below uses) so history can't bias it.
+// Genuine Twi/Hausa messages still rely on Mansa's own "source" detection,
+// which has otherwise worked correctly throughout this project -- guessing
+// unconfirmed "twi"/"hausa" enum values here would risk breaking that path.
+const NON_ENGLISH_MARKER = /[ɛɔƐƆ]|\b(medaase|akwaaba|sannu|yaya|lafiya|wallahi|nagode|gaskiya)\b/i;
+const ENGLISH_WORD_PATTERN = /\b(the|is|are|can|does|what|why|how|who|when|will|would|should|please|thanks|could|and)\b/i;
+
+function isConfidentlyEnglish(text) {
+  const s = String(text || "");
+  if (NON_ENGLISH_MARKER.test(s)) return false;
+  return /^[\x00-\x7F]*$/.test(s) && ENGLISH_WORD_PATTERN.test(s);
+}
+
 /**
  * Generate a Kasagadi AI reply via Mansa.
  * @param {Array<{role:string, content:string}>} conversationHistory - full history, last item is the current user message
@@ -127,9 +149,10 @@ export async function generateResponse(conversationHistory, member = null, match
   const message = lastMsg?.content || "";
   const system = buildSystemPrompt(member, matchedClaims);
   const historyPayload = history.map((m) => ({ role: m.role, content: m.content }));
+  const responseLanguage = isConfidentlyEnglish(message) ? "english" : mansa.responseLanguage;
 
   try {
-    return await callMansa(message, system, historyPayload, mansa.responseLanguage);
+    return await callMansa(message, system, historyPayload, responseLanguage);
   } catch (err) {
     const code = err.response?.data?.code;
     console.error("Mansa API error:", code || err.message, err.response?.data?.detail || "");
