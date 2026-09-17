@@ -103,7 +103,7 @@ HOW TO RESPOND:
 8. If the user's message isn't about a claim/fact-check/local context at all (e.g. small talk, "how are you"), respond warmly and briefly, then gently steer back: ask what story or topic they'd like help understanding.
 9. If the user explicitly asks to speak to a human, a real person, a fact-checker, or reports something urgent/harmful (e.g. targeted harassment, a claim causing real-world danger), emit [ESCALATE] immediately.
 10. CRITICAL: if the user asks a real, specific question (names a person, event, policy, statistic, rumour, etc.), you MUST attempt an actual answer using the candidate claims, your own knowledge, and web search — never deflect a specific question with a generic "here's what I can help with" capabilities menu. A menu-style non-answer is only appropriate for a message with genuinely no content to act on (e.g. a bare "hi").
-11. FORMAT: Under 200 words per reply. WhatsApp markdown only: *bold*, _italic_. No markdown tables or headers.
+11. FORMAT: Under 200 words per reply. WhatsApp markdown only: *bold*, _italic_. No markdown tables or headers. Always put a blank line (an empty line, i.e. two line breaks) between distinct parts of the reply: between the opening sentence and the next section, before and after each *bold section header*, between a paragraph and a bullet list, and before the closing line. Never run the intro, a labeled section, and the closing line together with only single line breaks — WhatsApp needs that visual spacing to stay readable. Bullet points within the same list stay on consecutive lines with single line breaks between them.
 12. Never open a reply with a filler/throat-clearing preamble that delays the actual answer (e.g. "Let me check what Kasagadi has on this", "Let me look into that for you", "Give me a moment"). You are Kasagadi AI, not a separate assistant querying an external Kasagadi database — you already have (or don't have) the answer, so start the reply with it: the verdict, the context, or the answer itself, in the first sentence.
 
 TAGS: [ESCALATE]short reason[/ESCALATE] is the ONLY tag that exists, and only when the user explicitly wants a human or the situation needs urgent human review — append it at the very end, on its own line. Do NOT invent any other bracketed tags, labels, or metadata lines (e.g. no [CLAIM:...], [STATUS:...], [TOPIC:...] or similar) — your entire response other than [ESCALATE] must be plain conversational WhatsApp text a real person reads.`;
@@ -268,5 +268,39 @@ function parseAIResponse(raw) {
   }
   text = lines.join("\n").trim();
 
+  // Defensive net: Mansa doesn't always follow the blank-line spacing rule in
+  // the system prompt, making longer replies read as one compacted block on
+  // WhatsApp — a bold *Section header* or a bullet list glued directly onto
+  // the line before it with no visual breathing room. Rebuild spacing
+  // structurally rather than relying on the model alone: ensure a blank
+  // line separates a paragraph from a bold header and a paragraph from a
+  // bullet list (in both directions), without doubling blank lines that are
+  // already there. Deliberately scoped to these two clear cases only — the
+  // model can't be reliably told apart on plain sentence-to-sentence breaks.
+  text = normalizeParagraphSpacing(text);
+
   return { text, escalate };
+}
+
+function normalizeParagraphSpacing(text) {
+  const rawLines = text.split("\n");
+  const isBullet = (l) => /^\s*[-•]\s/.test(l);
+  const isBoldHeader = (l) => /^\*[^*\n]+:?\*\s*$/.test(l.trim());
+  const out = [];
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    const prev = out.length > 0 ? out[out.length - 1] : null;
+    const prevTrimmed = prev !== null ? prev.trim() : null;
+    const needsBlankBefore =
+      trimmed !== "" &&
+      prevTrimmed !== null &&
+      prevTrimmed !== "" &&
+      ((isBoldHeader(line) && !isBoldHeader(prev)) ||
+        (isBullet(line) && !isBullet(prev) && !isBoldHeader(prev)) ||
+        (!isBullet(line) && !isBoldHeader(line) && isBullet(prev)));
+    if (needsBlankBefore) out.push("");
+    out.push(line);
+  }
+  // Collapse 3+ consecutive blank lines down to 1 — WhatsApp only needs one.
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
